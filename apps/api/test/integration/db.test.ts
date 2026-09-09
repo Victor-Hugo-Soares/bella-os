@@ -21,7 +21,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await handle.close();
+  // beforeAll pode falhar antes de criar o handle (ex.: migration quebrada)
+  await handle?.close();
 });
 
 describe('banco de dados (integração)', () => {

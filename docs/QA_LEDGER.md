@@ -42,6 +42,11 @@ Pendente: autenticação/autorização (M2), RLS (M1).
 - [smoke] `request_id` presente no header de resposta e no envelope de erro; pino JSON em produção; `pino-pretty` só em desenvolvimento.
 - Pendente: `/ready` com banco real (teste de integração escrito, valida na CI), métricas (M3).
 
+### 2026-09-09 — M0 Bootstrap — CI (frente independente de integração) — FAIL → corrigido
+- [CI run 1] `quality` e `build+smoke` verdes; `integração (Postgres 16)` **falhou**: `Can't find meta/_journal.json` — o migrador do Drizzle exige o journal mesmo sem migrations (confirmado no código instalado de `drizzle-orm/migrator.js`, que itera `journal.entries`).
+- Correção: `packages/db/migrations/meta/_journal.json` vazio no formato do drizzle-kit 0.31 (`version: "7"`); `afterAll` protegido contra falha no `beforeAll`.
+- Resultado da segunda execução da CI: registrado em `PROJECT_STATE.md §4`.
+
 ### 2026-09-09 — M0 Bootstrap — Gate Git — ver `PROJECT_STATE.md` (branch/commit)
 - [inspeção] diff revisado antes do commit; sem segredos; `docs/source/*.docx` binário marcado em `.gitattributes`.
 - CI: workflow criado; resultado da primeira execução registrado em `PROJECT_STATE.md` após o push.
