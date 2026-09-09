@@ -2,10 +2,10 @@
 
 > Fotografia atual. Atualizar ao fim de cada milestone e antes de compactar contexto. Histórico vai para `memory/archive/`.
 
-**Atualizado em:** 2026-09-09 (M2 concluído, sessão Sonnet 5)
+**Atualizado em:** 2026-09-09 (M2 concluído e mergeado, sessão Sonnet 5)
 **Fase:** A — Fundação · **Milestone concluído:** M2 Auth staff, papéis, permissões · **Próximo:** M3 Dispositivos, PIN, observabilidade (`ACTIVE_PLAN.md`)
-**Branch:** `main` (M2 ainda na branch `claude/m2-auth-staff` até o merge — ver §7) · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git`
-**CI:** aguardando confirmação do PR do M2 (ver §7 antes de considerar mergeado).
+**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commit:** `c9bf056` (merge do PR #2, M2)
+**CI:** verde nos 3 jobs: quality, integração Postgres (**32/32 testes** em 5 arquivos), build+smoke.
 
 ## 1. Estado funcional do produto
 Além do M1 (banco, tenant, isolamento por RLS), agora existe:
@@ -35,8 +35,8 @@ Sem mudança desde o M1: Docker Desktop local com falha (ENV-1, provavelmente re
 - `pnpm check` verde localmente (lint, format, typecheck, unit — 40 testes: 29 domain + 3 contracts + 3 db + 5 api).
 - `pnpm build` gerou bundle de 41,5 KB (vs. 188 KB do M0 quando `pg` foi acidentalmente embutido) — confirma que `better-auth` ficou `external`, não embutido.
 - Smoke manual do bundle compilado: servidor sobe sem banco e com banco inalcançável, sem crash; `/v1/me` sem sessão → 401 estruturado; rota de auth responde (wired, não 404); aviso alto no log quando só `DATABASE_URL` está definida (confirma ADR-024 funcionando).
-- **12 testes de integração novos** (`auth.test.ts` 6, `require-permission.test.ts` 6) escritos para rodar contra Postgres real como `bella_app` — resultado da CI: `[preencher após o PR/CI deste milestone]`.
-- Um gap de segurança real encontrado e corrigido durante o próprio trabalho (não em produção): a API ainda conectava como dono do banco. Ver ADR-024.
+- **CI final: 32/32 testes de integração verdes** em 5 arquivos (3 do M1 + `auth.test.ts` e `require-permission.test.ts` do M2), rodando como `bella_app` contra Postgres 16 real.
+- Dois problemas reais encontrados e corrigidos durante o próprio trabalho (nenhum chegou a produção): (1) a API ainda conectava como dono do banco — ADR-024; (2) `addContentTypeParser('*', ...)` não sobrescrevia o parser default de `application/json` do Fastify, fazendo `sign-up`/`sign-in` chegarem ao Better Auth com corpo vazio — diagnosticado lendo o código-fonte instalado do Fastify depois do erro aparecer na CI, corrigido sobrescrevendo `application/json` explicitamente.
 
 ## 5. Decisões que não podem ser esquecidas
 Do M2: **ADR-023** (Better Auth: sem plugin Fastify oficial, rota catch-all manual com parser de conteúdo escopado; `usePlural: true`; CLI correta é `auth`, não o `@better-auth/cli` deprecado; IDs continuam UUID v7; `users.password_hash` do M1 removido — senha mora em `accounts.password`). **ADR-024** (API roda como `bella_app`, não mais como dono, a partir de agora — `APP_DATABASE_URL`).
@@ -45,9 +45,9 @@ Do M2: **ADR-023** (Better Auth: sem plugin Fastify oficial, rota catch-all manu
 Sem mudança — ver `PRODUCT_CONTEXT.md §2`. Nenhuma pergunta nova no M2.
 
 ## 7. Dependendo do Victor / pendências operacionais
-- Confirmar resultado do CI do PR do M2 (branch `claude/m2-auth-staff`) e mergear se verde — se esta atualização foi escrita antes do resultado final, o próximo passo de qualquer sessão é checar `gh pr view`/`gh run list` primeiro.
-- Reiniciar a máquina para tentar destravar o Docker Desktop (não bloqueante).
+- Reiniciar a máquina para tentar destravar o Docker Desktop (não bloqueante — CI cobre a lacuna).
 - Decidir se torna o repositório privado (ainda pendente desde o bootstrap).
+- Nota de ambiente (M2): a conta ativa do GitHub CLI voltou sozinha para `victorlins-dev` no meio da sessão, fazendo um push falhar com 403 antes de ser percebido e corrigido. Toda sessão deve validar `gh auth status` **antes de cada push**, não só uma vez no início.
 
 ## 8. Próximo passo exato
-Executar o **M3** conforme `docs/ACTIVE_PLAN.md`: pareamento de dispositivos (KDS/caixa), PIN de operador, observabilidade mínima (métricas, `/ready` com detalhe de latência). Antes disso, confirmar que o M2 está de fato mergeado em `main` com CI verde.
+Executar o **M3** conforme `docs/ACTIVE_PLAN.md`: pareamento de dispositivos (KDS/caixa), PIN de operador, observabilidade mínima (métricas, `/ready` com detalhe de latência).

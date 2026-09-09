@@ -114,3 +114,10 @@ Evidência de 3+ frentes para mudança crítica (autenticação + permissão + t
 - Causa raiz: `addContentTypeParser('*', ...)` sozinho não sobrescreve o parser default de `application/json` — o Fastify guarda o wildcard sob uma chave própria (`''`) e só recorre a ela quando não há parser específico para o content-type; `application/json` já tinha um parser (herdado por cópia do Map ao encapsular o plugin), então ele sempre vencia. Confirmado lendo `fastify/lib/content-type-parser.js` (`getParser`/`existingParser`) depois do erro real na CI — não foi hipótese, foi diagnóstico via leitura do código-fonte instalado após reproduzir a falha.
 - Correção: `application/json` sobrescrito explicitamente (além do wildcard `'*'`) com o mesmo parser de passagem em buffer, escopado ao plugin `identityRoutes`.
 - Resultado da segunda execução: registrado abaixo assim que confirmado.
+
+### 2026-09-09 — M2 — CI run 2 — PASS
+- `lint · format · typecheck · unit`: verde. `integração (Postgres 16)`: **32/32 testes verdes em 5 arquivos** (db, tenant-isolation, audit-outbox do M1 + auth, require-permission do M2). `build + smoke`: verde.
+- PR #2 mergeado em `main` (`c9bf056`).
+
+### 2026-09-09 — M2 — Gate Git — PASS
+PR #2 (`claude/m2-auth-staff` → `main`), 2 commits de código (feature + correção de bug real de content-type encontrada pela CI) + 1 de docs, diff revisado, sem segredos, CI verde nos 3 jobs antes do merge.

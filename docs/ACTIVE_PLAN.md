@@ -2,9 +2,7 @@
 
 > Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.2 (`devices`, `pairing_codes`) → `ARCHITECTURE.md` §5 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-## Antes de começar: confirme que o M2 está mergeado
-
-Este plano assume que a branch `claude/m2-auth-staff` (PR de login de staff) já está mergeada em `main` com CI verde. Se não estiver: rode `gh pr view` / `gh run list` no repositório, resolva qualquer pendência do M2 primeiro (o M3 depende do módulo de identidade existir e funcionar), e só depois continue.
+> M2 (login de staff, sessão, `requirePermission`) está mergeado em `main` (commit `c9bf056`, PR #2, CI verde: 32/32 testes de integração). Este plano do M3 assume isso como ponto de partida.
 
 ## Milestone atual: **M3 — Dispositivos, PIN e observabilidade mínima** (Fase A)
 
