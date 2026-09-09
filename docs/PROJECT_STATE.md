@@ -2,52 +2,47 @@
 
 > Fotografia atual. Atualizar ao fim de cada milestone e antes de compactar contexto. Histórico vai para `memory/archive/`.
 
-**Atualizado em:** 2026-09-09 (M2 concluído e mergeado, sessão Sonnet 5)
-**Fase:** A — Fundação · **Milestone concluído:** M2 Auth staff, papéis, permissões · **Próximo:** M3 Dispositivos, PIN, observabilidade (`ACTIVE_PLAN.md`)
-**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commit:** `c9bf056` (merge do PR #2, M2)
-**CI:** verde nos 3 jobs: quality, integração Postgres (**32/32 testes** em 5 arquivos), build+smoke.
+**Atualizado em:** 2026-09-09 (M3 concluído, sessão Sonnet 5)
+**Fase:** A — Fundação · **Milestone concluído:** M3 Dispositivos, PIN, observabilidade · **Próximo:** M4 Web shell + login + design system (`ACTIVE_PLAN.md`)
+**Branch:** `claude/m3-devices-pin` (aguardando CI/merge — ver §7) · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git`
+**CI:** aguardando confirmação (verificar `gh run list`/`gh pr view` antes de assumir mergeado).
 
 ## 1. Estado funcional do produto
-Além do M1 (banco, tenant, isolamento por RLS), agora existe:
-- **Login de staff funcionando de ponta a ponta**: cadastro, login, sessão via cookie, logout — tudo pela API HTTP real, usando Better Auth.
-- **`/v1/me`**: devolve o usuário autenticado a partir da sessão.
-- **`requirePermission`**: middleware que resolve, dentro do contexto de tenant do M1, se o usuário logado tem a permissão necessária — provado positivo e negativo para dois papéis diferentes, e provado que um usuário sem membership num tenant não age nele mesmo autenticado.
-- **A API agora roda com o papel restrito do banco (`bella_app`)**, não mais com o dono — condição necessária para o isolamento do M1 valer de verdade em tráfego real (gap encontrado e corrigido nesta sessão, ver ADR-024).
+Além do login de staff (M2), agora existe:
+- **Pareamento de dispositivo**: um gerente gera um código de 6 dígitos; o tablet da cozinha ou o computador do caixa troca esse código por uma credencial de longa duração, sem precisar de login de staff.
+- **PIN de operador**: com um dispositivo já autenticado, qualquer funcionário confirma sua identidade com um PIN curto para ações sensíveis — com bloqueio automático depois de tentativas erradas repetidas.
+- **`/ready` agora informa a latência do banco**, primeiro passo de observabilidade real.
 
 ## 2. Estado por módulo
 | Módulo | Estado | Observação |
 |--------|--------|------------|
-| Documentação/memória | atualizada | 15 documentos em `docs/`, ADR-023/024 do M2 |
-| `@bella/domain` | dinheiro, IDs, permissões prontos | — |
-| `@bella/db` | schema com identidade + auth (M2), RLS, seed | tabelas de catálogo/mesas/pedidos entram em M5+ |
-| `@bella/api` | health/ready + **identity (login, sessão, permissão)** | dispositivos/PIN entram em M3 |
+| identity (login, sessão, permissão, dispositivo, PIN) | **funcional (M1–M3)** | UI é M4 |
+| `@bella/domain` | dinheiro, IDs, permissões, PIN, token de dispositivo | tudo testado e pesquisado antes de codar |
+| `@bella/db` | schema com identidade + auth + devices | catálogo/mesas/pedidos entram em M5+ |
 | `apps/web` | não existe | M4 |
-| identity | **funcional (M2)**: login, sessão, permissão | dispositivos/PIN é M3; UI é M4 |
-| devices/PIN | não iniciado | M3 |
 | catalog / tables | não iniciado | M5–M7 |
 | ordering / kitchen | não iniciado | M8–M11 |
 | ledger / payments / cash | não iniciado | M12–M15 |
 
 ## 3. Ambiente conhecido
-Sem mudança desde o M1: Docker Desktop local com falha (ENV-1, provavelmente resolve com reboot da máquina — ação pendente do Victor), workspace em OneDrive (ENV-5). CI continua sendo a única frente de integração com Postgres real, e continua provando ser confiável (nenhum teste do M2 rodou localmente; todos passaram na CI — ver §7 para o resultado real assim que a execução terminar).
+Sem mudança de fundo desde o M1 (Docker local com falha, ENV-1; workspace em OneDrive, ENV-5). **Novo (ENV-6):** a conta ativa do GitHub CLI voltou sozinha para `victorlins-dev` três vezes ao longo das sessões M2/M3 do mesmo dia — sempre pega antes de um push real, mas exige checagem em toda sessão, não só no início.
 
-## 4. Evidências do M2 (resumo; detalhes em `QA_LEDGER.md`)
-- `pnpm check` verde localmente (lint, format, typecheck, unit — 40 testes: 29 domain + 3 contracts + 3 db + 5 api).
-- `pnpm build` gerou bundle de 41,5 KB (vs. 188 KB do M0 quando `pg` foi acidentalmente embutido) — confirma que `better-auth` ficou `external`, não embutido.
-- Smoke manual do bundle compilado: servidor sobe sem banco e com banco inalcançável, sem crash; `/v1/me` sem sessão → 401 estruturado; rota de auth responde (wired, não 404); aviso alto no log quando só `DATABASE_URL` está definida (confirma ADR-024 funcionando).
-- **CI final: 32/32 testes de integração verdes** em 5 arquivos (3 do M1 + `auth.test.ts` e `require-permission.test.ts` do M2), rodando como `bella_app` contra Postgres 16 real.
-- Dois problemas reais encontrados e corrigidos durante o próprio trabalho (nenhum chegou a produção): (1) a API ainda conectava como dono do banco — ADR-024; (2) `addContentTypeParser('*', ...)` não sobrescrevia o parser default de `application/json` do Fastify, fazendo `sign-up`/`sign-in` chegarem ao Better Auth com corpo vazio — diagnosticado lendo o código-fonte instalado do Fastify depois do erro aparecer na CI, corrigido sobrescrevendo `application/json` explicitamente.
+## 4. Evidências do M3 (resumo; detalhes em `QA_LEDGER.md`)
+- `pnpm check` verde localmente; `drizzle-kit check` limpo.
+- **Duas regressões de build reais encontradas e corrigidas** ao adicionar `@node-rs/argon2` (hash de PIN): o esbuild tentava resolver estaticamente binários nativos de todas as plataformas (corrigido com `external` no tsup), e mesmo assim o bundle não resolvia o pacote em runtime por causa do isolamento de `node_modules` do pnpm (corrigido declarando a dependência também em `apps/api`). Ambas só apareceram rodando o binário compilado de verdade — ver ADR-026.
+- 12 testes de integração novos (`devices.test.ts` 7, `pin.test.ts` 5) escritos para rodar como `bella_app` contra Postgres real — resultado da CI: `[preencher após confirmação]`.
 
 ## 5. Decisões que não podem ser esquecidas
-Do M2: **ADR-023** (Better Auth: sem plugin Fastify oficial, rota catch-all manual com parser de conteúdo escopado; `usePlural: true`; CLI correta é `auth`, não o `@better-auth/cli` deprecado; IDs continuam UUID v7; `users.password_hash` do M1 removido — senha mora em `accounts.password`). **ADR-024** (API roda como `bella_app`, não mais como dono, a partir de agora — `APP_DATABASE_URL`).
+**ADR-025** (`devices`/`pairing_codes` sem RLS, de propósito — o bootstrap de autenticação de dispositivo não tem tenant conhecido ainda; isolamento garantido na aplicação). **ADR-026** (`@node-rs/argon2` para PIN; precisou virar dependência direta de `apps/api` além de `@bella/domain`, e `external` no tsup — mesma classe de bug do `pg` no M0).
 
 ## 6. Perguntas abertas para o Victor
-Sem mudança — ver `PRODUCT_CONTEXT.md §2`. Nenhuma pergunta nova no M2.
+Sem mudança — ver `PRODUCT_CONTEXT.md §2`.
 
 ## 7. Dependendo do Victor / pendências operacionais
-- Reiniciar a máquina para tentar destravar o Docker Desktop (não bloqueante — CI cobre a lacuna).
+- Confirmar CI e mergear o PR do M3 antes de começar o M4 (checar `gh pr view`/`gh run list` primeiro em qualquer nova sessão).
+- Reiniciar a máquina para tentar destravar o Docker Desktop (não bloqueante).
 - Decidir se torna o repositório privado (ainda pendente desde o bootstrap).
-- Nota de ambiente (M2): a conta ativa do GitHub CLI voltou sozinha para `victorlins-dev` no meio da sessão, fazendo um push falhar com 403 antes de ser percebido e corrigido. Toda sessão deve validar `gh auth status` **antes de cada push**, não só uma vez no início.
+- ENV-6: se o Victor rodar outra sessão de Claude Code concorrente na mesma máquina noutro projeto GitHub, isso provavelmente explica a troca de conta — vale perguntar a ele.
 
 ## 8. Próximo passo exato
-Executar o **M3** conforme `docs/ACTIVE_PLAN.md`: pareamento de dispositivos (KDS/caixa), PIN de operador, observabilidade mínima (métricas, `/ready` com detalhe de latência).
+Confirmar merge do M3. Depois, executar o **M4** conforme `docs/ACTIVE_PLAN.md`: criar `apps/web` (Next.js), shell com as três superfícies por rota, tela de login usando o M2, aplicando `docs/FRONTEND_GUIDELINES.md`.

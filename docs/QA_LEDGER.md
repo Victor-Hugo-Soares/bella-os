@@ -121,3 +121,31 @@ Evidência de 3+ frentes para mudança crítica (autenticação + permissão + t
 
 ### 2026-09-09 — M2 — Gate Git — PASS
 PR #2 (`claude/m2-auth-staff` → `main`), 2 commits de código (feature + correção de bug real de content-type encontrada pela CI) + 1 de docs, diff revisado, sem segredos, CI verde nos 3 jobs antes do merge.
+
+---
+
+## Milestone M3 — Dispositivos, PIN e observabilidade mínima (Fase A)
+
+### 2026-09-09 — M3 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M3) revisado. Pesquisa de biblioteca de hash feita e testada de verdade (hash+verify reais com `@node-rs/argon2`) antes de escrever qualquer código de produção (regra 12).
+
+### 2026-09-09 — M3 — G2/G3/G6 Dados, feature e segurança — PASS
+Frentes:
+- [inspeção] schema `devices`/`pairing_codes` revisado; decisão de não usar RLS documentada com o motivo técnico exato (ADR-025), não como atalho.
+- [migração] `drizzle-kit generate`/`check` limpos.
+- [unit] `pin.test.ts` (6 testes) e `device-token.test.ts` (7 testes) em `@bella/domain`: hash/verify de PIN, unicidade e determinismo do hash de token, formato do código de pareamento.
+- [smoke real — regressão de build encontrada e corrigida] `pnpm build` falhou de verdade duas vezes em sequência: (1) esbuild tentando resolver estaticamente binários `.node` de todas as plataformas do `@node-rs/argon2` — corrigido com `external` no tsup; (2) mesmo `external`, o bundle compilado não resolvia o pacote em runtime (`ERR_MODULE_NOT_FOUND`) por causa do isolamento de `node_modules` do pnpm — corrigido declarando `@node-rs/argon2` como dependência direta também de `apps/api`. Ambos só apareceram rodando o binário de verdade, não no `tsc`/`pnpm build` sozinhos — reforça a lição do M0 (ADR-026).
+- [integração — CI, Postgres 16 real, conectando como `bella_app`] `devices.test.ts` (7 testes): pareamento completo (gerar código → trocar por token → token funciona numa rota real); código usado duas vezes rejeitado; código expirado rejeitado; token revogado para de funcionar; dispositivo de um tenant não verifica PIN de membership de outro tenant (RLS de `memberships` continua protegendo mesmo com `devices` sem RLS); geração sem permissão negada; geração em sequência nunca falha por colisão sem tratamento; inspeção independente confirma que só o hash do token é gravado, nunca o valor puro.
+- [integração — CI] `pin.test.ts` (5 testes): PIN certo verifica; PIN errado nega e conta tentativa; 5 tentativas erradas bloqueia (6ª tentativa nega mesmo com PIN certo); bloqueio expirado (simulado) permite verificar de novo e zera o contador; membership sem PIN configurado é negado sem tentar comparar hash inexistente.
+- **Total esperado:** 44 testes de integração (32 do M1+M2 + 12 novos) em 7 arquivos — resultado real da CI registrado em `PROJECT_STATE.md` assim que confirmado.
+
+### 2026-09-09 — M3 — CI run 1 (frente independente de integração) — FAIL → corrigido
+- [CI run 1] `quality` e `build+smoke` verdes; `integração (Postgres 16)` **falhou**: 4 de 45 testes.
+- **Bug real 1 (produção):** `verifyMembershipPin` lançava `AppError` de **dentro** da mesma transação que gravava a tentativa de PIN incorreta (`pinFailedAttempts`). O Postgres reage a uma exceção não capturada dentro de `db.transaction()` com `ROLLBACK` — desfazendo exatamente o registro que deveria persistir. Resultado: a 5ª tentativa nunca bloqueava porque nenhuma tentativa anterior tinha sido de fato gravada (a CI provou isso: "PIN errado é negado" tinha `pinFailedAttempts` sempre 0; "bloqueia depois de 5 tentativas" resolvia com sucesso na 6ª em vez de rejeitar). Corrigido: a transação sempre retorna um resultado (nunca lança), e quem decide lançar `AppError` é o código de fora, depois do commit.
+- **Teste desatualizado (não é bug de produção):** o teste antigo do M0 (`db.test.ts`, `/ready`) usava `toEqual` com igualdade exata, quebrado pelo novo campo `database_latency_ms` do M3. Corrigido para checar os campos relevantes sem fixar o valor da latência.
+- **Teste com asserção insuficiente:** "dispositivo de um tenant não consegue verificar PIN..." falhava com "invalid value undefined for header x-device-token" — sintoma de uma etapa anterior (criar/trocar código para o tenant Demo) ter falhado silenciosamente, sem uma asserção de status intermediária para revelar a causa real. Corrigido adicionando `expect(...).toBe(200/201)` com o corpo da resposta em todos os pontos de desestruturação do arquivo — próxima execução da CI mostra a causa real caso persista.
+
+### 2026-09-09 — M3 — CI run 2 (frente independente de integração) — FAIL → corrigido
+- [CI run 2] a asserção de diagnóstico adicionada na correção anterior funcionou exatamente como pretendido: revelou a causa real em vez de um sintoma. `criar código para o Demo falhou: TENANT_MISMATCH` — a membership do "dono do Demo" criada no `beforeAll` apontava para o papel `owner` do **Bella**, não do Demo.
+- **Causa raiz (bug de setup de teste, não de produção):** `withTenant(ownerDb.db, tenantId, ...)` não filtra nada — `ownerDb` é o dono do banco, que ignora RLS. A consulta de papéis sem `WHERE tenant_id = ...` explícito devolvia papéis de TODOS os tenants, e `.find(r => r.name === 'owner')` pegava o primeiro que o Postgres retornasse (o do Bella, seedado primeiro), mesmo pedindo o papel do Demo.
+- Corrigido em `devices.test.ts`, `pin.test.ts`, `require-permission.test.ts` (`.where(eq(schema.roles.tenantId, tenantId))` explícito). Auditados `tenant-isolation.test.ts`/`audit-outbox.test.ts` (M1): não tinham o problema, pois suas asserções de isolamento já usavam `appDb` (a conexão restrita). Ver ADR-027.
