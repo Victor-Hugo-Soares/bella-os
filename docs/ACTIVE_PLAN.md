@@ -1,72 +1,88 @@
 # Bella OS — Plano Ativo
 
-> Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.1–1.2 e §3 → `ARCHITECTURE.md` §4 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
+> Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.2 → `DECISIONS.md` ADR-005/ADR-019/ADR-020 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-## Milestone atual: **M1 — Banco, tenant e isolamento** (Fase A)
+## Milestone atual: **M2 — Auth staff, papéis, permissões** (Fase A)
 
 ### Problema
-Não existe nenhuma tabela. Precisamos da fundação de dados que todo o resto assume: tenants, configurações tipadas, identidade mínima, papéis/permissões, auditoria, outbox de eventos, idempotência e jobs, com **isolamento entre tenants provado** por aplicação e por RLS.
+`users`, `roles`, `role_permissions` e `memberships` já existem e estão semeados (M1), mas ninguém consegue de fato logar: não há sessão, não há cookie, não há checagem de permissão na API. Sem isso, toda superfície administrativa fica bloqueada.
 
 ### Resultado esperado
-1. `pnpm db:migrate` em banco vazio cria todas as tabelas abaixo sem erro; rodar duas vezes é idempotente.
-2. `pnpm db:seed` cria dois tenants (`bella` = "Bella III", `demo` = "Restaurante Demo"), papéis padrão com permissões, um usuário dono por tenant (senha só via variável de seed; nunca hardcode em produção), configurações padrão de cada tenant.
-3. Testes de integração provam: (a) uma query com contexto do tenant A **não vê** linhas do tenant B mesmo com SQL direto (`select * from roles`), (b) insert com `tenant_id` diferente do contexto é rejeitado pela policy, (c) sem contexto (`app.tenant_id` vazio) nenhuma linha de tabela de negócio é visível, (d) usuário de aplicação não tem `BYPASSRLS` e não é owner das tabelas, (e) `audit_log` e `domain_events` recebem linhas na mesma transação de uma mutação de exemplo, (f) `idempotency_keys` tem UNIQUE `(tenant_id, scope, key)` (inserção duplicada falha).
-4. `docs/DOMAIN_MODEL.md §1.1, 1.2, 1.8` atualizados se o schema divergir do planejado (documentar a razão).
+1. Staff loga com email+senha e recebe uma sessão (cookie httpOnly); logout funciona; sessão expira/renova de forma razoável.
+2. `GET /v1/me` devolve o usuário, o(s) tenant(s) com membership, o papel e as permissões efetivas (a partir de `role_permissions`, fonte única `@bella/domain/permissions.ts`).
+3. Middleware `requirePermission(key)` na API: 401 sem sessão, 403 com sessão mas sem a permissão, 200 com a permissão — testado nos dois sentidos (positivo e negativo) para pelo menos duas permissões diferentes.
+4. Login em um tenant não dá acesso a dados de outro tenant (reusa o isolamento do M1 — a sessão carrega `tenantId` do membership ativo, e toda query de negócio continua passando por `withTenant`).
+5. Nenhuma senha, hash ou token aparece em log (o redactor do M0 já cobre `*.password`, `*.pin`, `*.token` — confirmar que cobre os campos reais que o Better Auth usa).
+
+### Pesquisa já feita nesta sessão (não repetir — usar diretamente)
+Versão instalada/compatível confirmada via npm e documentação oficial em 2026-09-09:
+- `better-auth@1.7.3` — peer `drizzle-orm: ^0.45.2 || >=1.0.0-rc.1 <2.0.0` **bate exatamente** com o `drizzle-orm@0.45.2` já usado no projeto. Nenhum bump de versão necessário.
+- Adapter: pacote separado `@better-auth/drizzle-adapter` (não é mais um submódulo de `better-auth`, é pacote próprio — confirmar versão exata no momento de instalar, mesma disciplina do M1).
+  ```ts
+  import { betterAuth } from 'better-auth';
+  import { drizzleAdapter } from '@better-auth/drizzle-adapter';
+  export const auth = betterAuth({
+    database: drizzleAdapter(db, { provider: 'pg', schema: { ...schema, user: schema.users } }),
+  });
+  ```
+  O mapeamento `user: schema.users` é necessário porque nossa tabela já se chama `users` (plural, ADR/consistência do projeto) e não `user` (nome default do Better Auth).
+- Schema: Better Auth tem CLI própria (`npx @better-auth/cli generate` ou equivalente — **confirmar o nome exato do pacote da CLI no momento de rodar**, `auth@latest generate` apareceu na doc mas pode ter mudado) que gera as tabelas que ele espera (`session`, `account`, `verification` — DOMAIN_MODEL.md já reserva esses nomes). Gerar o SQL, **revisar antes de aplicar** (mesma disciplina do M1: nenhuma tabela nova sem entender o que ela faz), e então rodar via `drizzle-kit generate` + nosso `migrate.ts` — não usar o migrator próprio do Better Auth, para manter um único pipeline de migration.
+- Fastify: **não há plugin oficial** — integração é uma rota catch-all manual:
+  ```ts
+  app.route({
+    method: ['GET', 'POST'],
+    url: '/api/auth/*',
+    async handler(request, reply) {
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      const headers = fromNodeHeaders(request.headers); // @better-auth/node ou helper próprio — confirmar import exato
+      const req = new Request(url, { method: request.method, headers, body: ... });
+      const res = await auth.handler(req);
+      reply.status(res.status);
+      res.headers.forEach((v, k) => reply.header(k, v));
+      return reply.send(await res.text());
+    },
+  });
+  ```
+  Sessão em rota protegida: `await auth.api.getSession({ headers: fromNodeHeaders(request.headers) })` → `null` se não autenticado.
+- **Antes de escrever código de verdade**: reconfirmar esses detalhes (nome exato do pacote da CLI, do helper `fromNodeHeaders`, assinatura atual de `betterAuth()`) na documentação oficial e nos tipos instalados — a pesquisa acima é um ponto de partida de baixo risco, não uma cola definitiva; bibliotecas mudam entre a pesquisa e a implementação.
 
 ### Arquivos envolvidos
-- `packages/db/src/schema/*.ts` (um arquivo por domínio: `platform.ts`, `tenants.ts`, `identity.ts`); `packages/db/src/schema/index.ts` reexporta.
-- `packages/db/migrations/0000_*.sql` gerado por `pnpm db:generate` **+** migration manual `0001_rls.sql` (policies, revogações, triggers) — Drizzle não gera RLS/roles; escrever SQL à mão e registrar em `migrations/meta` via `drizzle-kit generate --custom`.
-- `packages/db/src/seed/index.ts` + script `db:seed` (raiz e pacote).
-- `packages/db/src/roles.sql` ou migration: papel `bella_app` (LOGIN, sem BYPASSRLS) usado pela API; `bella_migrator` (owner) usado por migrations. Em dev/CI ambos existem no compose (`docker/postgres-init/02-roles.sql`).
-- `packages/domain/src/permissions.ts`: lista de chaves de permissão + papéis padrão (fonte única; seed lê daqui).
-- `apps/api/test/integration/tenant-isolation.test.ts`, `apps/api/test/integration/audit-outbox.test.ts`.
-- `docs/RUNBOOK_DEV.md` (novos comandos), `docs/QA_LEDGER.md`, `docs/PROJECT_STATE.md`.
+- `apps/api/src/modules/identity/` novo: `auth.ts` (instância do Better Auth), `routes.ts` (rota catch-all + `/v1/me`), `require-permission.ts` (middleware), `service.ts` (resolver permissões efetivas de um membership).
+- `packages/db/src/schema/auth.ts` novo: tabelas geradas pela CLI do Better Auth (`session`, `account`, `verification`), revisadas e ajustadas ao estilo do projeto (nomes de coluna, RLS — **essas tabelas são globais como `users`, sem `tenant_id`**, então sem RLS por tenant, mas revisar se o Better Auth expõe algo que precise ficar por trás de um controle de acesso).
+- Migration nova gerada por `pnpm db:generate` a partir do schema atualizado.
+- `apps/api/src/config.ts`: novas variáveis (`BETTER_AUTH_SECRET`, `WEB_ORIGIN` para `trustedOrigins`/CORS).
+- `.env.example`: documentar as novas variáveis (sem valor real).
+- Testes: `apps/api/test/integration/auth.test.ts` (login válido/inválido, sessão, `/v1/me`), `apps/api/test/integration/require-permission.test.ts` (positivo/negativo em 2+ permissões, dois tenants).
 
 ### Arquitetura / regras
-- Tabelas (ver `DOMAIN_MODEL.md`): `organizations`, `tenants`, `tenant_settings`, `platform_admins`, `users`, `roles`, `role_permissions`, `memberships`, `audit_log`, `domain_events`, `idempotency_keys`, `jobs`. **Não** criar ainda: dispositivos, PIN, mesas, catálogo (M3, M5, M6).
-- `users` é global (sem `tenant_id`); vínculo com tenant é `memberships`. Better Auth (M2) vai precisar de colunas próprias: **antes de fechar `users`, ler a documentação atual do Better Auth + adapter Drizzle e alinhar nomes de colunas** para não migrar duas vezes. Se a integração for incerta, deixar `users` mínimo (`id, email, name, status, created_at`) e permitir que o M2 adicione colunas.
-- IDs: `uuid` gerado na aplicação com UUID v7 (biblioteca `uuidv7` ou `crypto.randomUUID()` v4 se v7 não estiver disponível de forma confiável — registrar decisão). Default no banco `gen_random_uuid()` como fallback.
-- Timestamps `timestamptz` default `now()`. Dinheiro `bigint`. Status `text` + `CHECK`.
-- RLS: `ALTER TABLE ... ENABLE ROW LEVEL SECURITY; FORCE ROW LEVEL SECURITY;` em toda tabela com `tenant_id`; policy única `USING (tenant_id = current_setting('app.tenant_id', true)::uuid) WITH CHECK (idem)`. Tabelas globais (`users`, `organizations`, `platform_admins`) sem RLS por tenant, acesso só via serviço.
-- `ledger`-style append-only ainda não existe (M12), mas `audit_log` e `domain_events` já devem ter `REVOKE UPDATE, DELETE ... FROM bella_app`.
-- `domain_events.seq bigserial` + índice `(tenant_id, seq)`; `channel text`.
-- `idempotency_keys`: `UNIQUE (tenant_id, scope, key)`, `request_hash text`, `response_status int`, `response_body jsonb`, `expires_at`.
-- `jobs`: `status`, `run_at`, `locked_at`, `locked_by`, `attempts`, índice parcial `WHERE status = 'pending'`.
-- Helper `withTenant()` já existe em `packages/db/src/tenant-context.ts`; adicionar `withoutTenant()` explícito para operações de plataforma, com log de auditoria.
-
-### Banco
-Compose local (`pnpm db:up`) ou fallback do runbook. CI já tem Postgres em service container e roda `test:integration`.
+- `AppError` (`UNAUTHENTICATED`, `PERMISSION_DENIED`) já existem em `@bella/contracts` desde o M0 — reusar, não inventar novo formato de erro.
+- Ator resolvido pelo middleware: `{ type: 'user', userId, tenantId, membershipId, roleId, permissions: PermissionKey[] }` — mesma forma que `ARCHITECTURE.md §5` já descreve; guests e devices (M3) vão seguir o mesmo formato de ator.
+- CORS: até agora `origin: false` (M0); M2 precisa liberar para `WEB_ORIGIN` (ainda sem `apps/web`, mas configurável desde já) porque cookies de sessão exigem CORS correto quando o front existir.
+- `SameSite=Lax`, `httpOnly`, `secure` em produção — conferir o que o Better Auth faz por padrão e se precisa de override.
 
 ### Riscos
-- RLS "parecendo" funcionar porque o usuário é owner → teste (d) obrigatório.
-- Seed com senha fixa vazando para produção → seed só roda com `NODE_ENV !== 'production'` ou flag explícita; senha vem de `SEED_OWNER_PASSWORD` com default apenas em dev.
-- Divergência de schema do Better Auth (R-2) → checar docs antes de fixar `users`.
-- Migration manual fora do controle do Drizzle → usar `drizzle-kit generate --custom` para que o migrator aplique na ordem.
+- Biblioteca de terceiros pode ter mudado desde a pesquisa acima (mitigado: pesquisa foi feita nesta mesma sessão, mas reconfirmar tipos instalados antes de codar de verdade).
+- Se o adapter do Better Auth não suportar bem o mapeamento de nome de tabela `users`→`user`, pode ser mais simples renomear nossa tabela para `user` (singular) e absorver o custo agora, em vez de forçar um mapeamento frágil — decisão a registrar como ADR se acontecer.
+- Sessão de staff não pode vazar entre tenants: um usuário pode ter memberships em vários tenants (ex.: dono de duas unidades no futuro) — a sessão HTTP não fixa um tenant sozinha; o tenant ativo deve ser explícito em cada request (header ou rota) e validado contra as memberships do usuário. Definir isso no plano de UI mais adiante (Fase B), mas a API já precisa aceitar/validar um `tenant_id` de contexto por request desde o M2.
 
-### Segurança
-Dois papéis de banco; nenhum segredo no repositório; `.env.example` atualizado com `DATABASE_URL` (app) e `MIGRATION_DATABASE_URL` (migrator) se optar por credenciais separadas já em dev (recomendado, para que o teste (d) seja real).
-
-### Testes (mínimo 3 frentes — mudança crítica: tenant/permissão)
-1. Integração: suíte de isolamento (a–f) via Drizzle e via SQL direto.
-2. Inspeção independente: consulta `pg_policies`, `pg_roles.rolbypassrls`, `information_schema.table_privileges` dentro do teste **e** manualmente com `psql`/cliente, registrada no `QA_LEDGER.md`.
-3. Migration em banco vazio (CI) + migration sobre banco já migrado (idempotência) + `pnpm db:check`.
-4. Unit: `permissions.ts` (cada papel padrão só tem chaves existentes; dono tem todas).
+### Testes (mínimo 3 frentes — crítico: autenticação/permissão)
+1. Integração: login válido, login inválido (senha errada, usuário inexistente), sessão persiste entre requests, logout invalida.
+2. Integração: `requirePermission` positivo e negativo para papéis diferentes (ex.: `cashier` pode `payments.record`, não pode `users.manage`).
+3. Integração: usuário com membership só no tenant Demo não consegue agir no tenant Bella mesmo autenticado.
+4. Inspeção: nenhuma senha/hash aparece em log (grep nos logs capturados do teste).
 
 ### Critérios de aceite
-- [ ] `pnpm db:migrate` idempotente em banco vazio e já migrado.
-- [ ] `pnpm db:seed` cria 2 tenants, papéis, permissões, 1 dono por tenant; rodar de novo não duplica (upsert por slug/email).
-- [ ] Testes (a)–(f) verdes local (se Docker funcionar) **e** na CI.
-- [ ] `pnpm check` verde; CI verde no PR.
-- [ ] `DOMAIN_MODEL.md` e `RUNBOOK_DEV.md` atualizados; `QA_LEDGER.md` com evidências das 3+ frentes; `PROJECT_STATE.md` atualizado; próximo plano (M2) escrito aqui.
+- [ ] Login/logout funcionais via API, cobertos por teste.
+- [ ] `requirePermission` com teste positivo e negativo.
+- [ ] Isolamento de tenant validado também no nível de sessão HTTP (não só no banco).
+- [ ] `pnpm check` verde; CI verde no PR; nenhuma senha em log.
+- [ ] Docs atualizados (`DOMAIN_MODEL.md` se o schema do Better Auth divergir do reservado; `QA_LEDGER.md`; `PROJECT_STATE.md`; `ACTIVE_PLAN.md` reescrito para M3).
 
 ### Rollback
-Migrations são novas tabelas; rollback = `drop schema public cascade` em dev. Nenhum dado real existe.
-
-### Dependências / impacto
-Nenhuma dependência externa. Impacta todos os milestones seguintes (tudo referencia `tenants`).
+Tabelas novas (session/account/verification), sem dado real. `drop table` em dev se necessário.
 
 ### Gate de Plano (respondido em 2026-09-09)
-Problema entendido pelo comportamento (isolamento provado, não só tabelas criadas) · não há solução menor que preserve RLS · afeta banco e segurança · falhas plausíveis: owner ignora RLS, seed em produção, `set_config` fora de transação vazando entre requests (pool) · prova por integração + SQL + CI · rollback trivial · multi-tenant preservado, Bella é seed.
+Problema entendido pelo comportamento esperado (ninguém consegue logar) · solução menor não existe (auth é auth) · afeta identidade e segurança diretamente · falhas plausíveis: API do Better Auth mudou desde a pesquisa, mapeamento de tabela `users` frágil, sessão vazando entre tenants · prova por integração positiva+negativa · rollback trivial (sem dado real) · multi-tenant preservado (sessão carrega tenant explícito, não implícito).
 
 ## Próximos milestones (resumo; detalhes em `ROADMAP.md`)
-M2 auth staff (Better Auth) e permissões → M3 dispositivos, PIN, observabilidade → M4 web shell + login + design system → Fase B.
+M3 dispositivos/PIN/observabilidade → M4 web shell + login + design system → Fase B (catálogo, mesas, QR).

@@ -76,3 +76,24 @@
 
 ## ADR-018 — Testes de integração rodam contra Postgres real, nunca mock de banco (aceita)
 **Decisão:** Vitest com banco em Docker (local) / service container (CI); cada arquivo de teste usa schema ou transação isolada; seed reproduzível com dois tenants. Sem `pglite`/mocks para regras que dependem de constraints, locks ou RLS.
+
+## ADR-019 — IDs de aplicação são UUID v7 (`uuidv7` npm) (aceita, M1)
+**Contexto:** DOMAIN_MODEL.md pedia UUID v7 (ordenável por tempo); Node 24 não tem gerador v7 nativo (`crypto.randomUUID()` é v4).
+**Decisão:** pacote `uuidv7` (versão fixada conferida no npm em 2026-09-09) envolvido em `packages/domain/src/id.ts` (`newId()`, `isUuid()`). O banco mantém `gen_random_uuid()` (v4) como default de coluna — usado só se a aplicação não fornecer o ID explicitamente (nunca deveria acontecer em código novo).
+**Consequência:** um único ponto para trocar a biblioteca se necessário; testes de propriedade garantem unicidade e ordenação crescente.
+
+## ADR-020 — Um único papel de banco restrito (`bella_app`); dono do banco também migra e semeia (aceita, M1)
+**Contexto:** o plano original do M1 previa dois papéis (`bella_migrator` dono + `bella_app` restrito). Implementação simplificou para um: o usuário já provisionado como dono do banco (`bella` local/CI, o usuário do Railway em produção) roda migrations e seed; só `bella_app` (sem LOGIN/SUPERUSER/BYPASSRLS, criado pela migration) é novo.
+**Motivo:** um papel administrativo a menos por ambiente, uma senha a menos para gerenciar, sem perda de segurança — o que protege o RLS é `bella_app` não ser dono e não ter BYPASSRLS (provado no teste (d) do M1), não a existência de um segundo papel administrativo.
+**Consequência:** `DATABASE_URL` = dono (migrations/seed/inspeção); `APP_DATABASE_URL` = `bella_app` (é o que a API deveria usar a partir do momento em que módulos de negócio existirem, M2+). `docs/ACTIVE_PLAN.md` e `docs/DOMAIN_MODEL.md §2` citavam `bella_migrator`; não existe — corrigido nesta atualização.
+
+## ADR-021 — RLS e o papel `bella_app` são declarados na DSL do drizzle-orm, não em SQL manual (aceita, M1)
+**Contexto:** o plano original previa uma migration `--custom` hand-written para RLS/roles, por desconfiança de que a DSL de RLS do drizzle-orm (`pgPolicy`, `pgRole`, `.enableRLS()`) pudesse gerar SQL na ordem errada (política antes do papel existir) ou brigar com o comando `drizzle-kit check` (colisão de snapshot idêntico entre uma migration "custom" vazia e a anterior).
+**Decisão, com evidência:** inspecionado o código instalado do `drizzle-kit` (`api.js`) e testado localmente (sem precisar de banco — `generate` é só diff de schema): `CREATE ROLE "bella_app";` sai **antes** de qualquer `CREATE TABLE`, e `CREATE POLICY ... TO "bella_app"` sai **depois** de todas as tabelas — ordem correta automaticamente. `pgRole('bella_app', { inherit: true })` é necessário explicitamente: o construtor do drizzle-orm não tem default para `inherit`, e deixá-lo `undefined` gera `WITH NOINHERIT` sem necessidade (confirmado lendo `roles.js`).
+**O que continua manual:** `GRANT`/`REVOKE`/`ALTER DEFAULT PRIVILEGES` — não modelados pela DSL — apendados ao final do arquivo de migration gerado por `drizzle-kit generate` (não é mais uma migration `--custom` separada).
+**Consequência:** `pnpm db:check` fica limpo (sem colisão de snapshot); RLS vive no schema TypeScript, versionada junto com a tabela, reduzindo o risco de uma tabela nova esquecer a política. Regra para o futuro: toda tabela de negócio nova usa `tenantIsolationPolicy(t.tenantId)` no array de config + `.enableRLS()` (ver `packages/db/src/schema/_rls.ts`).
+
+## ADR-022 — `ALTER ROLE ... PASSWORD` não aceita parâmetro `$1`; usar `pg.escapeLiteral` (aceita, M1)
+**Contexto:** primeira versão de `set-app-role-password.ts` usava `client.query('alter role bella_app with login password $1', [password])`, assumindo que o protocolo estendido do `pg` parametriza qualquer posição de valor em DDL. A CI provou o contrário: `syntax error at or near "$1"` — o parser de DDL do Postgres exige um literal de string nessa posição específica da gramática de `ALTER ROLE`.
+**Decisão:** construir o SQL com `pg.escapeLiteral(password)` (escapa aspas simples e barras invertidas corretamente, produzindo `E'...'` quando necessário) e interpolar o literal já escapado. Coberto por teste unitário com `pg.Client` mockado que garante a query nunca contém `$1` e que uma senha com aspas simples aparece escapada.
+**Licão para o projeto:** nem toda posição sintática aceita bind parameter; quando uma migration/script toca DDL com valor dinâmico, ou se evita DDL dinâmico, ou se escapa manualmente com a função oficial da biblioteca — nunca com concatenação de string crua.

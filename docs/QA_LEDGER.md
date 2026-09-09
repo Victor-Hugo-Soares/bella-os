@@ -52,3 +52,37 @@ Pendente: autenticação/autorização (M2), RLS (M1).
 - CI: workflow criado; resultado da primeira execução registrado em `PROJECT_STATE.md` após o push.
 
 ### 2026-09-09 — Gate de Handoff Fable → Sonnet — ver seção final de `PROJECT_STATE.md`
+
+---
+
+## Milestone M1 — Banco, tenant e isolamento (Fase A)
+
+### 2026-09-09 — M1 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M1) revisado; Gate de Plano respondido antes de codar. Desvios do plano original registrados como decisões, não como "correção silenciosa": ADR-020 (um papel de banco em vez de dois), ADR-021 (RLS via DSL do drizzle-orm em vez de SQL manual).
+
+### 2026-09-09 — M1 — G2 Dados e contratos — PASS
+Frentes:
+- [inspeção] schema revisado: 12 tabelas, `tenant_id NOT NULL` em toda tabela de negócio (DOMAIN_MODEL.md §1.1, 1.2, 1.8); `role_permissions.tenant_id` denormalizado de propósito para manter a política de RLS uniforme.
+- [migration] `drizzle-kit generate` a partir de banco vazio (sem conexão — só diff de schema) + `drizzle-kit check` limpo (sem colisão de snapshot).
+- [integração — CI, Postgres 16 real] `db.test.ts` (M0, 6 testes: conexão, migrator, `withTenant`/`withoutTenant`, concorrência de contexto) — verde.
+- [integração — CI] `tenant-isolation.test.ts` (9 testes, critérios a–d do plano):
+  - **(a)** `bella_app` sob contexto do tenant Bella nunca vê `roles` do tenant Demo (via Drizzle **e** via SQL bruto `count(*) where tenant_id = demo`); o inverso também provado.
+  - **(b)** `INSERT` em `roles` com `tenant_id` divergente do contexto é rejeitado pela *policy* (mensagem real do Postgres inspecionada via `error.cause`, não via `.message` do wrapper do drizzle-orm — ver ADR abaixo); nada persistido.
+  - **(c)** sem `app.tenant_id` definido, `SELECT` em `roles`, `memberships`, `tenant_settings`, `domain_events`, `idempotency_keys` devolve zero linhas mesmo havendo dados.
+  - **(d)** `pg_roles.rolbypassrls`/`rolsuper` de `bella_app` são `false`; `bella_app` não é dono de `tenants`/`roles`; `pg_class.relrowsecurity` confirma RLS ligada nas 8 tabelas de negócio e desligada nas 3 globais.
+- [integração — CI] `audit-outbox.test.ts` (4 testes, critérios e–f):
+  - **(e)** mutação (criar papel) + `audit_log` + `domain_events` persistem juntos na mesma transação; segundo teste força uma violação de `NOT NULL` no meio da transação e prova que **nada** sobrevive (atomicidade real, não só no papel).
+  - **(f)** `idempotency_keys` UNIQUE `(tenant_id, scope, key)`: mesma chave no mesmo escopo é rejeitada pelo banco; mesma chave em escopos diferentes é permitida.
+- [unit] `set-app-role-password.test.ts` (3 testes, `pg.Client` mockado): a query nunca contém `$1`; senha com aspas simples aparece escapada; senha curta é rejeitada antes de abrir conexão.
+- [unit] `permissions.test.ts` (8 testes) e `id.test.ts` (4 testes) em `@bella/domain`.
+- **Total CI final:** `lint · format · typecheck · unit` verde, `integração (Postgres 16)` **19/19 testes verdes** em 3 arquivos, `build + smoke` verde.
+
+**Regressões reais encontradas e corrigidas durante o processo (não hipotéticas — a CI pegou de verdade):**
+1. `ALTER ROLE bella_app WITH LOGIN PASSWORD $1` falhou com `syntax error at or near "$1"` — DDL do Postgres não aceita bind parameter nessa posição. Corrigido com `pg.escapeLiteral` (ADR-022); teste de regressão adicionado.
+2. Duas asserções de teste esperavam a causa do erro em `error.message`, mas `drizzle-orm` envolve o erro real do Postgres em `DrizzleQueryError` cujo `.message` de topo é genérico ("Failed query: ..."); a causa real fica em `.cause`. Corrigido com helper `expectPgErrorMatching()`. **Isto não era um bug de isolamento** — 17 dos 19 testes já passavam na mesma execução, provando que a RLS funcionava; era só a asserção de teste checando o campo errado.
+
+### 2026-09-09 — M1 — G6 Segurança (RLS/tenant) — PASS
+Ver testes (a)–(d) acima. Evidência de 3+ frentes para mudança crítica de tenant/segurança: integração via ORM, integração via SQL bruto, inspeção de catálogo do Postgres (`pg_roles`, `pg_tables`, `pg_class`).
+
+### 2026-09-09 — M1 — Gate Git — PASS
+PR #1 (`claude/m1-banco-tenant` → `main`), 3 commits (feature + 2 correções encontradas pela própria CI), diff revisado, sem segredos (`.env.example` só tem senha de desenvolvimento local documentada como tal), CI verde nos 3 jobs antes do merge. Merge commit `ba348bd`.

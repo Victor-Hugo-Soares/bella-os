@@ -2,68 +2,54 @@
 
 > Fotografia atual. Atualizar ao fim de cada milestone e antes de compactar contexto. Histórico vai para `memory/archive/`.
 
-**Atualizado em:** 2026-09-09 (sessão de bootstrap com Fable 5.1)
-**Fase:** A — Fundação · **Milestone concluído:** M0 Bootstrap · **Próximo:** M1 Banco, tenant e isolamento (`ACTIVE_PLAN.md`)
-**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commits do bootstrap:** `3197077` docs → `5edffcd` tooling → `28e3763` código → `1e52854` fix journal + estado → (este commit) estado final
-**CI:** `.github/workflows/ci.yml` — **verde** em `main` (run 2, commit `1e52854`): quality, integração com Postgres 16, build + smoke.
+**Atualizado em:** 2026-09-09 (M1 concluído, sessão iniciada com Fable 5.1 e continuada com Sonnet 5)
+**Fase:** A — Fundação · **Milestone concluído:** M1 Banco, tenant e isolamento · **Próximo:** M2 Auth staff, papéis, permissões (`ACTIVE_PLAN.md`)
+**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commit:** `ba348bd` (merge do PR #1, M1)
+**CI:** `.github/workflows/ci.yml` — **verde** em `main`: quality, integração com Postgres 16 (19/19 testes), build + smoke.
 
 ## 1. Estado funcional do produto
-Nenhuma funcionalidade de restaurante existe ainda. Existe:
-- API Fastify que sobe, responde `/health` e `/ready` (degrada honestamente sem banco), devolve erros no envelope padronizado com `request_id`, redige credenciais nos logs.
-- Módulo de dinheiro (`@bella/domain`) com aritmética em centavos, arredondamento half-even, divisão exata e rateio, formatação/parsing BRL — base de toda a Fase D.
-- Contratos de erro e health (`@bella/contracts`).
-- Cliente Drizzle + migrator + `withTenant()` (`@bella/db`), sem tabelas ainda.
-- Monorepo, lint/format/typecheck/test/build, Postgres via compose, CI com integração.
+Nenhuma tela ou fluxo de restaurante existe ainda (isso começa na Fase B). O que existe é a fundação de dados e o esqueleto de API:
+- Banco com 12 tabelas (tenant/organização, configurações por tenant, identidade mínima, papéis/permissões, auditoria, outbox de eventos, idempotência, fila de jobs).
+- **Isolamento entre restaurantes provado de verdade**: o papel restrito `bella_app` (sem BYPASSRLS, não é dono das tabelas) nunca vê linha de outro tenant, mesmo tentando via SQL bruto; insert com tenant errado é rejeitado pelo próprio banco; sem contexto, zero linhas aparecem.
+- Seed idempotente com dois restaurantes fictícios (`bella`, `demo`), cada um com os 5 papéis padrão (dono, gerente, caixa, garçom, cozinha) e as permissões corretas por papel.
+- API Fastify com `/health`, `/ready`, envelope de erro padronizado, dinheiro em centavos testado, geração de IDs (UUID v7).
 
 ## 2. Estado por módulo
 | Módulo | Estado | Observação |
 |--------|--------|------------|
-| Documentação/memória | completo para handoff | 13 documentos em `docs/` |
-| Tooling/CI | pronto | CI valida integração com Postgres real |
-| `@bella/domain` | dinheiro pronto e testado | estados/permissões entram em M1/M11 |
+| Documentação/memória | atualizada | 15 documentos em `docs/`, incluindo ADR-019 a ADR-022 do M1 |
+| Tooling/CI | maduro | CI roda migrations + configura `bella_app` + testes de integração reais |
+| `@bella/domain` | dinheiro, IDs (UUID v7) e permissões prontos e testados | máquinas de estado de pedido/pagamento entram em M8+ |
 | `@bella/contracts` | erros + health | DTOs de negócio a partir de M5 |
-| `@bella/db` | cliente + migrator + withTenant | **zero migrations**; M1 |
-| `@bella/api` | esqueleto | módulos de negócio a partir de M1 |
+| `@bella/db` | schema completo do M1, RLS, seed, papel `bella_app` | tabelas de catálogo/mesas/pedidos entram em M5+ |
+| `@bella/api` | esqueleto + testes de integração de banco | rotas de negócio a partir de M2 (auth) |
 | `apps/web` | não existe | M4 (`create-next-app` na versão vigente) |
-| identity / tenants | não iniciado | M1–M3 |
+| identity (tenants, roles, memberships) | **modelo pronto (M1)**; login real pendente | M2 integra Better Auth |
+| devices/PIN | não iniciado | M3 |
 | catalog / tables | não iniciado | M5–M7 |
 | ordering / kitchen | não iniciado | M8–M11 |
 | ledger / payments / cash | não iniciado | M12–M15 |
 | inventory / printing / reporting | não iniciado | Fase E |
 
 ## 3. Ambiente conhecido
-Windows 11, Node 24.18, pnpm 10.34.5, git 2.55, gh 2.96 (conta ativa `Victor-Hugo-Soares`), Docker Desktop 29.6 **com daemon falhando** (ENV-1). Workspace em OneDrive (ENV-5). Detalhes e correções em `KNOWN_ISSUES.md` e `RUNBOOK_DEV.md §7`.
+Windows 11, Node 24.18, pnpm 10.34.5, git 2.55, gh 2.96 (conta ativa `Victor-Hugo-Soares`). **Docker Desktop continua com falha** (ENV-1) — diagnosticado como erro Windows 1920 num socket órfão; provavelmente resolve com reinício da máquina, ação pendente do Victor. Workspace em OneDrive (ENV-5, não resolvido). A CI é a frente de integração enquanto isso persistir — já provada confiável no M1 (pegou 2 bugs reais).
 
-## 4. Evidências do M0 (resumo; detalhes em `QA_LEDGER.md`)
-- `pnpm lint`, `pnpm format`, `pnpm typecheck`: verdes.
-- `pnpm test`: 26 testes (18 dinheiro, 3 contratos, 5 API) verdes.
-- `pnpm build` + execução do bundle em modo produção: `/health` ok (versão 0.0.1), `/ready` degraded/not_configured, 404 em envelope. Um bug real de empacotamento (`pg` embutido) foi encontrado pelo smoke e corrigido.
-- Integração com Postgres (`apps/api/test/integration/db.test.ts`, 6 testes: select 1, tabela de controle do migrador, `withTenant` define e não vaza `app.tenant_id`, rejeita não-UUID, transações concorrentes com tenants distintos não se misturam, `/ready` com banco real): **não executada localmente** (Docker). **CI run 2 (`1e52854`): 6/6 verdes** com Postgres 16 em service container. CI run 1 falhou por journal ausente do Drizzle (corrigido; ver `QA_LEDGER.md`).
-- CI completa (quality, integração, build+smoke): **verde** em `main` no commit `1e52854`.
+## 4. Evidências do M1 (resumo; detalhes em `QA_LEDGER.md`)
+- `pnpm check` (lint + format + typecheck + unit) verde localmente antes de cada push.
+- `drizzle-kit check` verde (RLS modelada via DSL do drizzle-orm, sem colisão de snapshot — ADR-021).
+- **CI (Postgres 16 real): 19/19 testes de integração verdes**, cobrindo os 6 critérios do plano (a isolamento cruzado, b insert rejeitado, c sem contexto = zero linhas, d papel sem bypass/não-dono, e transação atômica com auditoria+outbox, f UNIQUE de idempotência).
+- Dois bugs reais encontrados pela própria CI e corrigidos com evidência: `ALTER ROLE ... PASSWORD $1` (DDL não aceita parâmetro nessa posição — ADR-022) e asserções de teste checando `.message` em vez de `.cause` do erro do drizzle-orm (não era bug de isolamento — 17/19 testes já passavam na mesma execução).
+- PR #1 mergeado em `main` com os 3 jobs de CI verdes.
 
 ## 5. Decisões que não podem ser esquecidas
-ADR-001 a ADR-018 em `DECISIONS.md`. As mais estruturantes: monólito modular TS (001); Postgres + centavos (002); Drizzle (003); tenant_id + RLS (004); Better Auth + dispositivo/PIN + token de mesa (005); SSE com outbox (006); idempotência por chave (007); ledger append-only (008); pagamento manual no MVP (009); QR fixo com confirmação (010); cloud-first Railway (011); identidade Git do projeto (015).
+ADR-001 a ADR-018 (bootstrap) em `DECISIONS.md`. Do M1: **ADR-019** (UUID v7 via pacote `uuidv7`), **ADR-020** (um único papel de banco — `bella_app` — em vez dos dois planejados originalmente; o dono do banco migra e semeia), **ADR-021** (RLS e o papel de aplicação são declarados na DSL do drizzle-orm — `pgPolicy`/`pgRole`/`.enableRLS()` — não em SQL manual; GRANT/REVOKE continuam manuais por não serem modelados pela DSL), **ADR-022** (`ALTER ROLE ... PASSWORD` exige literal, não `$1`; usar `pg.escapeLiteral`).
 
 ## 6. Perguntas abertas para o Victor (não bloqueantes agora)
-Q1–Q14 em `PRODUCT_CONTEXT.md §2`. Urgência: Q14 (repositório público → privado) agora; Q1/Q2/Q3/Q6 antes da Fase D; Q5 antes de qualquer promessa fiscal; Q10–Q13 na Fase F.
+Sem mudança desde o bootstrap — ver `PRODUCT_CONTEXT.md §2`. Nenhuma pergunta nova surgiu no M1 (foi um milestone só de fundação técnica).
 
 ## 7. Dependendo do Victor
-- Decidir se torna o repositório privado (recomendado).
-- Corrigir o Docker Desktop (passos em `RUNBOOK_DEV.md §7`) **ou** aceitar fallback (Postgres local/Railway) — Sonnet pode seguir usando a CI como frente de integração enquanto isso, mas o ciclo local fica mais lento.
-- Opcional: tirar a pasta do OneDrive.
+- Reiniciar a máquina (ou apagar `AppData\Local\Docker\run` como Administrador) para tentar destravar o Docker Desktop — não bloqueante, a CI cobre a lacuna.
+- Decidir se torna o repositório privado (recomendado, ainda pendente).
 
-## 8. Gate de Handoff Fable → Sonnet (executado em 2026-09-09)
-| Pergunta | Onde está a resposta | Status |
-|----------|----------------------|--------|
-| O que estamos construindo? | `PRODUCT_CONTEXT.md §1, 3, 4, 5` | ok |
-| Por quê? | `PRODUCT_CONTEXT.md §1, 6`; `PRODUCT_NOTES.md` (observações de operação) | ok |
-| Arquitetura | `ARCHITECTURE.md`; `DOMAIN_MODEL.md` | ok |
-| Estado atual | este arquivo | ok |
-| Próximo passo exato | `ACTIVE_PLAN.md` (M1, com arquivos, testes e aceite) | ok |
-| O que NÃO fazer | `ARCHITECTURE.md §13`; `PRODUCT_NOTES.md` "não recomendado"; `PRODUCT_CONTEXT.md §5` não-objetivos; regras absolutas em `CLAUDE.md` | ok |
-| Decisões tomadas | `DECISIONS.md` | ok |
-| Questões abertas | `PRODUCT_CONTEXT.md §2`; `KNOWN_ISSUES.md` | ok |
-| Quais testes executar | `TESTING_STRATEGY.md`; comandos em `RUNBOOK_DEV.md §3` | ok |
-| Quais gates passar | `BELLA_OS_AUTONOMOUS_HANDOFF.md §4`; `ROADMAP.md` (gate por milestone); `QA_LEDGER.md` (formato) | ok |
-| Como falar com Victor | `CLAUDE.md` "Comunicação"; handoff §9 | ok |
-| Como preservar memória | `CLAUDE.md` "Compactação"; handoff §7 | ok |
+## 8. Próximo passo exato
+Executar o **M2** conforme `docs/ACTIVE_PLAN.md`: integrar Better Auth para login de staff, expor `requirePermission()` lendo as permissões já semeadas no M1, e provar autenticação positiva/negativa e isolamento entre tenants também no nível de sessão HTTP.
