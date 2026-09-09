@@ -180,3 +180,19 @@ Frentes:
 
 ### 2026-09-09 — M4 — `pnpm check` + build do monorepo — PASS
 `pnpm check` (lint + format + typecheck + unit) verde para as 7 packages/apps, incluindo `apps/web` pela primeira vez. `pnpm build` verde (Next.js + tsup). CI (`ci.yml`) já cobre `apps/web` sem nenhuma mudança de workflow — os scripts da raiz (`pnpm -r --if-present ...`, `eslint .`, `prettier --check .`) já são recursivos/globais por design desde o M0.
+
+### 2026-09-09 — M4 — Gate Git — PASS
+PR #4 (`claude/m4-web-shell` → `main`), CI remota verde nos 3 jobs (lint·format·typecheck·unit, integração Postgres, build+smoke), merge commit `08da6fd`.
+
+---
+
+## Milestone M4.1 — Refinamento visual (feedback direto do Victor)
+
+### 2026-09-09 — M4.1 — G5 UX — PASS
+Contexto: Victor testou a tela de login já mergeada e apontou "cara de IA" — diagnóstico correto por `FRONTEND_GUIDELINES.md §1` (o teste do template de IA não estava sendo aplicado, só os tokens de cor/fonte). Ver ADR-029.
+Frentes:
+- [visual, browser real] login redesenhado em split-screen (marca própria `BellaMark` + headline + grid/glow à esquerda, formulário com ícones Lucide à direita); capturado em desktop (1280px) e mobile (375px, painel de marca oculto por `lg:hidden`, testado de verdade, não só CSS lido).
+- [visual, browser real] dashboard redesenhado como início de shell de app (barra superior com marca/tenant/sair, lista de dados com ícones, indicador "Sessão ativa" com ponto de cor) — inspecionado renderizado com dado de exemplo via um servidor Node mínimo local só para popular `/v1/me` (não há Postgres local, ENV-1; nenhum código de produção alterado para este teste).
+- [regressão encontrada e corrigida] `.font-mono-tabular` nunca aplicava a família JetBrains Mono, só `tabular-nums` — bug existente desde o M4, só percebido ao inspecionar fonte por família real via `document.fonts`. Corrigido; confirmado com `document.fonts.check(spec, textoRealDaTela)` (sem o texto, o `check()` dá falso-negativo por causa dos múltiplos `@font-face` de subset que o `next/font` gera — lição registrada, não é bug de fonte).
+- [build real] `pnpm check` e `pnpm build` verdes no monorepo inteiro após as mudanças.
+- **Escopo:** puramente visual/estrutural, sem mudança de contrato de API, permissão ou dado — não exige 3 frentes (não é dinheiro/comanda/autenticação/tenant), 2 frentes (visual real + build) suficientes.
