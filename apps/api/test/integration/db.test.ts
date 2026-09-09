@@ -79,7 +79,10 @@ describe('GET /ready com banco real', () => {
     const res = await app.inject({ method: 'GET', url: '/ready' });
     expect(res.statusCode).toBe(200);
     const parsed = readyResponseSchema.parse(res.json());
-    expect(parsed).toEqual({ status: 'ready', checks: { database: 'ok' } });
+    expect(parsed.status).toBe('ready');
+    expect(parsed.checks.database).toBe('ok');
+    // latência (M3): número não-negativo, sem fixar um valor exato (varia por máquina/CI)
+    expect(parsed.checks.database_latency_ms).toBeGreaterThanOrEqual(0);
     await app.close();
   });
 });

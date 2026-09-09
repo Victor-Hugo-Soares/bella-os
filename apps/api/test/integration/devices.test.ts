@@ -189,6 +189,7 @@ describe('pareamento de dispositivo', () => {
       headers: { cookie, 'x-tenant-id': bellaTenantId },
       payload: { deviceKind: 'cashier', deviceName: 'Caixa 1' },
     });
+    expect(createRes.statusCode, createRes.body).toBe(200);
     const { code } = createRes.json() as { code: string };
 
     const first = await app.inject({
@@ -214,6 +215,7 @@ describe('pareamento de dispositivo', () => {
       headers: { cookie, 'x-tenant-id': bellaTenantId },
       payload: { deviceKind: 'floor', deviceName: 'Tablet Salão' },
     });
+    expect(createRes.statusCode, createRes.body).toBe(200);
     const { code } = createRes.json() as { code: string };
 
     // Simula o TTL vencido sem esperar 10 minutos de verdade — manipulação direta do
@@ -241,12 +243,14 @@ describe('pareamento de dispositivo', () => {
       headers: { cookie, 'x-tenant-id': bellaTenantId },
       payload: { deviceKind: 'kds', deviceName: 'Tablet a revogar' },
     });
+    expect(createRes.statusCode, createRes.body).toBe(200);
     const { code } = createRes.json() as { code: string };
     const exchangeRes = await app.inject({
       method: 'POST',
       url: '/v1/devices/exchange',
       payload: { code },
     });
+    expect(exchangeRes.statusCode, exchangeRes.body).toBe(201);
     const { token, deviceId } = exchangeRes.json() as { token: string; deviceId: string };
 
     const revokeRes = await app.inject({
@@ -273,12 +277,14 @@ describe('pareamento de dispositivo', () => {
       headers: { cookie: demoCookie, 'x-tenant-id': demoTenantId },
       payload: { deviceKind: 'kds', deviceName: 'Tablet Demo' },
     });
+    expect(createRes.statusCode, `criar código para o Demo falhou: ${createRes.body}`).toBe(200);
     const { code } = createRes.json() as { code: string };
     const exchangeRes = await app.inject({
       method: 'POST',
       url: '/v1/devices/exchange',
       payload: { code },
     });
+    expect(exchangeRes.statusCode, `trocar código do Demo falhou: ${exchangeRes.body}`).toBe(201);
     const { token: demoDeviceToken } = exchangeRes.json() as { token: string };
 
     // dispositivo do Demo tentando verificar PIN do dono do Bella — RLS de memberships
@@ -335,12 +341,14 @@ describe('inspeção independente', () => {
       headers: { cookie, 'x-tenant-id': bellaTenantId },
       payload: { deviceKind: 'kds', deviceName: 'Inspecionado' },
     });
+    expect(createRes.statusCode, createRes.body).toBe(200);
     const { code } = createRes.json() as { code: string };
     const exchangeRes = await app.inject({
       method: 'POST',
       url: '/v1/devices/exchange',
       payload: { code },
     });
+    expect(exchangeRes.statusCode, exchangeRes.body).toBe(201);
     const { token, deviceId } = exchangeRes.json() as { token: string; deviceId: string };
 
     const [row] = await withoutTenant(ownerDb.db, (tx) =>

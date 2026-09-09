@@ -196,11 +196,22 @@ export interface PinVerificationResult {
   roleId: string;
 }
 
+type PinOutcome = { ok: true; result: PinVerificationResult } | { ok: false; message: string };
+
 /**
  * Confirma a identidade de um operador via PIN, num dispositivo já autenticado
  * (ACTIVE_PLAN.md M3: PIN é segundo fator, nunca sozinho). Bloqueia depois de
  * `PIN_MAX_ATTEMPTS` tentativas erradas por `PIN_LOCKOUT_MINUTES` — campos já existiam
  * em `memberships` desde o M1.
+ *
+ * Importante: a transação PRECISA terminar em COMMIT mesmo quando o PIN está errado —
+ * é o registro da tentativa falha (`pinFailedAttempts`) que faz o bloqueio funcionar.
+ * A primeira versão lançava o erro de dentro do `withTenant`, o que fazia o Postgres
+ * dar ROLLBACK e desfazer exatamente a contagem de tentativas que deveria persistir
+ * (bug real, pego pela CI: a 5ª tentativa nunca bloqueava porque nenhuma tentativa
+ * anterior tinha sido de fato gravada). Por isso a transação sempre retorna um
+ * resultado — nunca lança — e quem decide lançar `AppError` é o código de fora, depois
+ * do commit.
  */
 export async function verifyMembershipPin(
   db: Db,
@@ -208,7 +219,7 @@ export async function verifyMembershipPin(
   membershipId: string,
   pin: string,
 ): Promise<PinVerificationResult> {
-  return withTenant(db, tenantId, async (tx) => {
+  const outcome = await withTenant(db, tenantId, async (tx): Promise<PinOutcome> => {
     const rows = await tx
       .select()
       .from(schema.memberships)
@@ -216,20 +227,17 @@ export async function verifyMembershipPin(
       .for('update');
     const membership = rows[0];
     if (!membership || membership.status !== 'active') {
-      throw new AppError('PERMISSION_DENIED', 'Membership inexistente ou inativo.');
+      return { ok: false, message: 'Membership inexistente ou inativo.' };
     }
     if (membership.pinLockedUntil && membership.pinLockedUntil.getTime() > Date.now()) {
-      throw new AppError(
-        'PERMISSION_DENIED',
-        'PIN bloqueado temporariamente após tentativas incorretas.',
-      );
+      return { ok: false, message: 'PIN bloqueado temporariamente após tentativas incorretas.' };
     }
     if (!membership.pinHash) {
-      throw new AppError('PERMISSION_DENIED', 'PIN não configurado para este usuário.');
+      return { ok: false, message: 'PIN não configurado para este usuário.' };
     }
 
-    const ok = await verifyPin(membership.pinHash, pin);
-    if (!ok) {
+    const verified = await verifyPin(membership.pinHash, pin);
+    if (!verified) {
       const attempts = membership.pinFailedAttempts + 1;
       const lockedUntil =
         attempts >= PIN_MAX_ATTEMPTS ? new Date(Date.now() + PIN_LOCKOUT_MINUTES * 60_000) : null;
@@ -237,7 +245,7 @@ export async function verifyMembershipPin(
         .update(schema.memberships)
         .set({ pinFailedAttempts: attempts, pinLockedUntil: lockedUntil })
         .where(eq(schema.memberships.id, membershipId));
-      throw new AppError('PERMISSION_DENIED', 'PIN incorreto.');
+      return { ok: false, message: 'PIN incorreto.' };
     }
 
     await tx
@@ -245,8 +253,16 @@ export async function verifyMembershipPin(
       .set({ pinFailedAttempts: 0, pinLockedUntil: null })
       .where(eq(schema.memberships.id, membershipId));
 
-    return { membershipId: membership.id, userId: membership.userId, roleId: membership.roleId };
+    return {
+      ok: true,
+      result: { membershipId: membership.id, userId: membership.userId, roleId: membership.roleId },
+    };
   });
+
+  if (!outcome.ok) {
+    throw new AppError('PERMISSION_DENIED', outcome.message);
+  }
+  return outcome.result;
 }
 
 /** Define/troca o PIN do próprio membership (self-service, ver routes.ts). */
