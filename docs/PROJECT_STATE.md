@@ -2,50 +2,45 @@
 
 > Fotografia atual. Atualizar ao fim de cada milestone e antes de compactar contexto. Histórico vai para `memory/archive/`.
 
-**Atualizado em:** 2026-09-09 (M4 + M4.1 mergeados, sessão Sonnet 5)
-**Fase:** A — Fundação · **Milestone concluído:** M4 Web shell + login + design system, mais M4.1 (refinamento visual por feedback direto do Victor) · **Próximo:** M5 Catálogo (início da Fase B, `ACTIVE_PLAN.md`)
-**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commit:** `4a8df72` (merge PR #5, M4.1; PR #4 do M4 em `08da6fd`)
-**CI:** verde nos 3 jobs em ambos os PRs (lint·format·typecheck·unit, integração Postgres, build+smoke).
+**Atualizado em:** 2026-09-09 (M5 concluído e mergeado, sessão Sonnet 5)
+**Fase:** B — Catálogo e operação básica · **Milestone concluído:** M5 Catálogo (API + admin) · **Próximo:** M6 Mesas, QR e sessão de mesa (`ACTIVE_PLAN.md`)
+**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commit:** `0919719` (merge PR #7, M5)
+**CI:** verde nos 3 jobs (lint·format·typecheck·unit, integração Postgres — **53/53 testes** em 8 arquivos, build+smoke).
 
 ## 1. Estado funcional do produto
-Pela primeira vez existe uma tela real: `/admin/login`. Um funcionário abre a URL, digita email/senha, e a chamada vai de verdade para a API (M2) em outro processo/porta — provando CORS e cookie de sessão entre origens diferentes, não só "parece que funciona". Cardápio do cliente e KDS existem só como placeholders de rota (conteúdo real é Fase B/C).
+Além de login/permissão/dispositivo (M1–M3) e do shell web (M4/M4.1), agora existe um cardápio de verdade: um dono/gerente autenticado cria estações de produção (cozinha, bar, ...), categorias e produtos com preço, e pode esgotar/repor um produto com um clique. Ainda não existe cardápio visível ao cliente (isso é M7) nem mesa/QR (M6).
 
 ## 2. Estado por módulo
 | Módulo | Estado | Observação |
 |--------|--------|------------|
-| identity (login, sessão, permissão, dispositivo, PIN) | **funcional (M1–M3)** | UI de login consumindo agora (M4) |
-| `@bella/domain` | dinheiro, IDs, permissões, PIN, token de dispositivo | tudo testado e pesquisado antes de codar |
-| `@bella/db` | schema com identidade + auth + devices | catálogo/mesas/pedidos entram em M5+ |
-| `apps/web` | **shell criado (M4)**: 3 superfícies por rota, design system aplicado, login funcional | cardápio/KDS/admin reais são Fase B/C |
-| catalog / tables | não iniciado | M5–M7 |
-| ordering / kitchen | não iniciado | M8–M11 |
-| ledger / payments / cash | não iniciado | M12–M15 |
+| identity (login, sessão, permissão, dispositivo, PIN) | **funcional (M1–M3)** | — |
+| `apps/web` (shell, login, design system) | **funcional (M4/M4.1)** | — |
+| **catálogo** (estações, categorias, produtos) | **funcional (M5)**, CRUD completo + admin UI | — |
+| catálogo (grupos de modificador, modificadores) | **API pronta, sem UI** (M5, escopo cortado) | UI entra quando M6/M7 justificarem |
+| catálogo (imagem de produto, meio a meio) | não iniciado | reservado, não modelado ainda |
+| mesas / sessão de mesa / QR | não iniciado | M6 |
+| cardápio do cliente / carrinho | não iniciado | M7 |
+| pedidos / KDS / caixa | não iniciado | Fase C/D |
 
 ## 3. Ambiente conhecido
-Sem mudança de fundo desde o M1 (Docker local com falha, ENV-1; workspace em OneDrive, ENV-5). **ENV-6**: checar `gh auth status` imediatamente antes de cada push continua necessário. Ainda sem Postgres local acessível — bloqueia testar um login **bem-sucedido** de ponta a ponta com dado real (ver §4).
+Sem mudança (Docker local com falha, ENV-1; workspace OneDrive, ENV-5). **ENV-6** seguiu acontecendo: a conta ativa do `gh` voltou sozinha para `victorlins-dev` mais uma vez nesta sessão (5ª ocorrência), pega antes do push como sempre — considerar isso um padrão estrutural do ambiente, não um incidente pontual.
 
-## 4. Evidências do M4 (resumo; detalhes em `QA_LEDGER.md`, decisões em `DECISIONS.md` ADR-028)
-- `pnpm check` e `pnpm build` verdes para o monorepo inteiro, incluindo `apps/web` pela primeira vez; CI (`ci.yml`) já cobre isso sem nenhuma mudança de workflow (scripts da raiz são recursivos por design desde o M0).
-- Fontes do design system provadas de verdade num browser real (`document.fonts.check`) nas três famílias/duas origens (Google Fonts, Fontshare).
-- CORS + cookie de sessão entre dois processos reais (web:3200, api:3001) provados via inspeção de rede real, não só "a tela carregou".
-- **Um bug real de UX encontrado e corrigido:** `authFetch()` só reconhecia o formato de erro plano do Better Auth, perdendo a mensagem específica quando a resposta vinha no nosso envelope aninhado (`{ error: { message } }}`) — caso comum quando uma requisição de auth nem chega ao Better Auth. Corrigido para checar as duas formas.
-- **Um achado de processo real (não bug de código):** um `next start` já em execução não pega um rebuild em disco — testar contra um servidor "esquecido" rodando fez parecer que uma correção não tinha efeito. Lição registrada em ADR-028 para toda sessão futura de smoke manual.
-- **Duas regressões de monorepo reais** encontradas e corrigidas: `pnpm-workspace.yaml` duplicado gerado pelo `create-next-app` (conflitava com o da raiz) e `next typegen` faltando no script `typecheck` de `apps/web` (tipos de rota do App Router não apareciam para um `tsc --noEmit` isolado).
-- **Limitação real registrada, não escondida:** sem Postgres local, não foi possível testar um login bem-sucedido → dashboard com dado real. Cobertos: CORS/cookie, fontes, visual em duas larguras, estados de erro/loading, extração de mensagem de erro nos dois formatos possíveis.
-- **Playwright adiado** (decisão registrada, não esquecimento): só uma tela real existe e não há dado de teste local para popular um fluxo de sucesso automatizado; reavaliar no M5/M6.
-
-## 4.1 M4.1 — Refinamento visual (feedback direto do Victor, mesmo dia)
-Victor testou a tela de login recém-mergeada e apontou que parecia "template de IA" — diagnóstico correto: os tokens de cor/fonte estavam certos, mas a composição não seguia o teste de `FRONTEND_GUIDELINES.md §1`. Refeito: login em split-screen com marca própria (`BellaMark`, SVG, não emoji), headline de produto e ícones Lucide nos campos; dashboard como início de shell de app (barra superior, chip de tenant, indicador de sessão). **Bug real corrigido de quebra:** `.font-mono-tabular` nunca trocava a fonte para JetBrains Mono desde o M4, só aplicava `tabular-nums`. Ver ADR-029. PR #5 mergeado (`4a8df72`), CI verde nos 3 jobs.
+## 4. Evidências do M5 (resumo; detalhes em `QA_LEDGER.md`, decisão em `DECISIONS.md` ADR-030)
+- Schema novo (`stations`, `categories`, `products`, `modifier_groups`, `modifiers`, `product_modifier_groups`), todas com RLS por tenant igual a qualquer outra tabela de negócio — sem exceção.
+- **Achado real de arquitetura:** `GET /v1/me/tenants` (o front precisa saber a qual tenant o usuário pertence antes de ter `X-Tenant-Id`) esbarrou em `memberships` ter RLS por tenant — resolvido com uma segunda policy de RLS permissiva por `user_id` (`selfLookupPolicy`), combinada com OR pela regra padrão do Postgres, não um bypass.
+- **53/53 testes de integração verdes** (45 de M1–M3 + 8 novos do catálogo) cobrindo fluxo feliz, validação cruzada de tenant, soft-delete, permissão negativa (`kitchen`), isolamento entre tenants, vínculo produto↔modificador, `GET /v1/me/tenants`.
+- Admin UI (`/admin/catalog/{stations,categories,products}`) com os 4 estados obrigatórios; testado ao vivo no estado de erro (sem Postgres local para testar o fluxo de sucesso — limitação registrada, não escondida).
+- **Escopo cortado conscientemente:** sem imagem de produto (upload/storage é problema à parte) e sem meio a meio (depende de decisão de produto sobre precificação).
 
 ## 5. Decisões que não podem ser esquecidas
-**ADR-025** (`devices`/`pairing_codes` sem RLS, de propósito). **ADR-026** (`@node-rs/argon2`; duas regressões de build reais; bug de transação real no PIN). **ADR-027** (consultas de teste via dono precisam filtrar `tenant_id` explicitamente). **ADR-028** (M4: `next typegen` no typecheck; fontes em duas origens; `authFetch` precisa reconhecer dois formatos de erro; `next start` não pega rebuild em disco sozinho — sempre reiniciar depois de rebuildar). **ADR-029** (M4.1: login/dashboard redesenhados por feedback direto sobre "cara de IA"; bug real do `.font-mono-tabular`).
+**ADR-025** (`devices`/`pairing_codes` sem RLS). **ADR-026** (`@node-rs/argon2`). **ADR-027** (consultas de teste via dono precisam filtrar `tenant_id`). **ADR-028** (M4: typegen, fontes, `authFetch`, `next start` não pega rebuild). **ADR-029** (M4.1: redesenho por feedback "cara de IA"). **ADR-030** (M5: `selfLookupPolicy` para `GET /v1/me/tenants` sem enfraquecer isolamento).
 
 ## 6. Perguntas abertas para o Victor
-Sem mudança — ver `PRODUCT_CONTEXT.md §2`.
+Sem mudança — ver `PRODUCT_CONTEXT.md §2`. Nova observação de produto (não bloqueante): ainda não existe seletor de tenant na UI — hoje o front assume o primeiro tenant do usuário, o que já é suficiente para o Bella III sozinho.
 
 ## 7. Dependendo do Victor / pendências operacionais
-- Reiniciar a máquina para tentar destravar o Docker Desktop (não bloqueante, mas destravaria testar login bem-sucedido de ponta a ponta localmente).
+- Reiniciar a máquina para tentar destravar o Docker Desktop (destravaria testar o fluxo completo de catálogo na UI localmente).
 - Decidir se torna o repositório privado (ainda pendente desde o bootstrap).
 
 ## 8. Próximo passo exato
-Reescrever `ACTIVE_PLAN.md` para o M5 (catálogo, início da Fase B), conforme `docs/ROADMAP.md`, e começar a execução.
+Executar o **M6** conforme `docs/ACTIVE_PLAN.md`: mesas, áreas, `qr_code`, sessão de mesa (`table_sessions`) com índice único parcial (só uma sessão aberta por mesa), geração de PDF dos QR Codes.
