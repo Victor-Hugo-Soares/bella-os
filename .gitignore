@@ -1,0 +1,26 @@
+# dependências e builds
+node_modules/
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# ambiente e segredos — NUNCA versionar
+.env
+.env.*
+!.env.example
+
+# logs e temporários
+*.log
+.DS_Store
+Thumbs.db
+
+# testes
+playwright-report/
+test-results/
+
+# editores
+.vscode/*
+!.vscode/extensions.json
+.idea/

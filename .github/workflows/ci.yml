@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: lint · format · typecheck · unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  integration:
+    name: integração (Postgres 16)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bella
+          POSTGRES_PASSWORD: bella
+          POSTGRES_DB: bella_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U bella -d bella_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://bella:bella@localhost:5432/bella_test
+      DATABASE_URL: postgres://bella:bella@localhost:5432/bella_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration
+
+  build:
+    name: build + smoke da API compilada
+    runs-on: ubuntu-latest
+    needs: [quality]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: smoke
+        env:
+          NODE_ENV: production
+          LOG_LEVEL: warn
+        run: |
+          node apps/api/dist/index.js & PID=$!
+          for i in $(seq 1 30); do curl -fsS http://localhost:3001/health >/dev/null 2>&1 && break || sleep 0.5; done
+          curl -fsS http://localhost:3001/health | grep -q '"status":"ok"'
+          kill $PID

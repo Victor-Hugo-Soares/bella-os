@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: bella-os-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bella
+      POSTGRES_PASSWORD: bella
+      POSTGRES_DB: bella_dev
+      TZ: UTC
+    ports:
+      - '5433:5432'
+    volumes:
+      - bella_pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U bella -d bella_dev']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  bella_pgdata:
