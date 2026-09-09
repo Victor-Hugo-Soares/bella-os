@@ -1,0 +1,78 @@
+# Bella OS — Decisões (ADRs)
+
+> Uma entrada por decisão. Formato: contexto → decisão → consequências → como reverter. Status: `aceita`, `proposta`, `substituída por ADR-x`. Novas decisões vão ao final; nunca reescreva o histórico.
+
+## ADR-001 — Monólito modular TypeScript em monorepo pnpm (aceita, 2026-09-09)
+**Contexto:** três superfícies (cliente, KDS, admin), regras financeiras críticas, equipe de um dev + agentes, custo baixo.
+**Decisão:** monorepo pnpm com `apps/api` (Fastify), `apps/web` (Next.js), `packages/{db,domain,contracts,config}`. Domínios separados por pasta e por contrato dentro da API.
+**Consequências:** um deploy por app; domínio testável sem browser; sem rede entre módulos. Exige disciplina: módulo não acessa tabela de outro.
+**Reverter:** extrair um módulo para serviço próprio quando houver motivo medido (carga ou equipe), mantendo o contrato.
+
+## ADR-002 — PostgreSQL como único banco; dinheiro em `bigint` centavos (aceita)
+**Contexto:** transações, constraints, RLS, concorrência de fechamento e pagamentos.
+**Decisão:** Postgres 16. Nenhum `float` para dinheiro. Helper único de arredondamento half-even.
+**Consequências:** todo cálculo passa por `packages/domain/money.ts`; testes de centavos obrigatórios.
+
+## ADR-003 — Drizzle ORM com migrations SQL versionadas (aceita)
+**Contexto:** precisamos de `SET LOCAL`, índices parciais, triggers e RLS explícitos.
+**Decisão:** Drizzle + drizzle-kit; SQL manual permitido em migrations para constraints/RLS/triggers.
+**Alternativa descartada:** Prisma (abstrai demais transação/RLS).
+
+## ADR-004 — Multi-tenant por coluna `tenant_id` + RLS como segunda camada (aceita)
+**Contexto:** SaaS futuro; vazamento entre restaurantes é falha inaceitável.
+**Decisão:** um banco/schema; `tenant_id NOT NULL` em toda tabela de negócio; contexto de tenant obrigatório na camada de repositório; RLS com `current_setting('app.tenant_id')` ativado nas tabelas de negócio; usuário de aplicação sem `BYPASSRLS`. Tenant = uma unidade; `organizations` opcional agrupa unidades.
+**Consequências:** toda transação começa com `SET LOCAL app.tenant_id`; testes de vazamento cruzado são gate de saída da Fase A.
+**Reverter:** schema-per-tenant ou banco-per-tenant só se um cliente exigir isolamento físico (custo alto, não previsto).
+
+## ADR-005 — Better Auth para staff; sessão de mesa assinada para cliente; dispositivo + PIN para operação (aceita)
+**Contexto:** auth artesanal é risco; restaurante usa dispositivos compartilhados; cliente não quer criar conta.
+**Decisão:** Better Auth (email+senha, sessões em Postgres) para staff/admin. Dispositivos (KDS, caixa) pareados por código e com token de longa duração escopado. Ações sensíveis exigem PIN de operador (argon2id, bloqueio por tentativas). Cliente recebe cookie httpOnly com token HMAC escopado a uma sessão de mesa.
+**Consequências:** três tipos de credencial na API; middleware resolve ator uniforme `{ type, id, tenantId, permissions }`.
+**Risco registrado:** dependência de biblioteca de terceiros para auth; mitigação: adapter isolado em `identity/auth-provider.ts`; se Better Auth se mostrar inadequado na Fase A, trocar por Lucia-style com Oslo antes de existir usuário real. **Sonnet deve confirmar a versão atual e a API do Better Auth na documentação oficial antes de implementar** (regra da seção 16 do handoff).
+
+## ADR-006 — Tempo real via SSE com outbox em Postgres (aceita)
+**Contexto:** KDS precisa de push; mutações são HTTP; queremos reconexão simples.
+**Decisão:** eventos gravados em `domain_events` na mesma transação da mutação; endpoint SSE por canais; replay por `Last-Event-ID`; polling de segurança no KDS a cada 20 s; instância única no início, `LISTEN/NOTIFY` quando houver mais de uma.
+**Descartado:** WebSocket (bidirecional desnecessário), Supabase Realtime (acoplamento), Redis (infra extra).
+
+## ADR-007 — Idempotência por chave do cliente em toda mutação crítica (aceita)
+**Decisão:** header `Idempotency-Key` obrigatório em criação de pedido, pagamento, sessão de mesa e transições; tabela `idempotency_keys` com resposta armazenada; corpo diferente com mesma chave → `409`.
+
+## ADR-008 — Ledger append-only por comanda; totais reconstruíveis (aceita)
+**Decisão:** `ledger_entries` sem UPDATE/DELETE (privilégio revogado + trigger). Saldo = soma. `tab_closures` guarda snapshot para conferência. Teste de reconciliação compara ledger × itens × pagamentos.
+
+## ADR-009 — Pagamento manual no MVP; sem PSP, sem TEF, sem fiscal (aceita)
+**Contexto:** Bella já tem maquininha/PIX; integração fiscal exige decisão jurídica (SAT/NFC-e).
+**Decisão:** caixa registra forma e valor. `payments.external_ref` e estados `pending/failed` reservados para PSP futuro. Nenhuma promessa fiscal até Victor decidir (pergunta Q5 em `PRODUCT_CONTEXT.md`).
+
+## ADR-010 — QR fixo por mesa + confirmação de sessão configurável (aceita)
+**Contexto:** QR impresso não pode rotacionar; risco de pedido remoto/prank.
+**Decisão:** `tables.qr_code` curto e não sequencial; sessão aberta por cliente nasce não verificada quando `customer_order_mode ≠ direct`; primeiro pedido aguarda confirmação do salão; limite de valor para sessão não verificada; rate limit. Modo `direct` disponível para quem aceitar o risco.
+
+## ADR-011 — Cloud-first no Railway; degradação consciente sem internet (aceita)
+**Contexto:** custo e simplicidade vs. dependência de internet do restaurante.
+**Decisão:** API + web + Postgres no Railway (staging e production). KDS/caixa não fazem mutação offline; mostram estado e bloqueiam. Recomendação formal de failover 4G ao Bella. Impressão via agente local na Fase E.
+**Reverter:** "modo servidor local" só se a operação provar necessidade.
+
+## ADR-012 — Estimativa de espera é faixa, calculada no servidor por carga da estação (aceita)
+**Decisão:** `estimated_ready_at` por ticket; UI mostra faixa ±30% rotulada "estimativa". Sem promessa fixa. Calibração por histórico é pós-MVP.
+
+## ADR-013 — Dia operacional configurável (padrão 05:00 America/Sao_Paulo) (aceita)
+**Decisão:** relatórios e numeração de pedidos usam `business_day` derivado de `tenant_settings.business_day_cutoff`. Timestamps em UTC no banco.
+
+## ADR-014 — Frontend único Next.js com três superfícies por rota; design system do Victor (aceita)
+**Decisão:** `apps/web` com grupos de rota `/(customer)/[tenant]/m/[table]`, `/(kds)/kds`, `/(admin)/admin`. Estética definida em `FRONTEND_GUIDELINES.md` (Schibsted Grotesk + Switzer + JetBrains Mono, oklch, dark por padrão, Lucide, sem emoji). KDS pode usar tema claro de alto contraste se testes em tela real mostrarem melhor legibilidade (decisão adiada para Fase C com evidência visual).
+
+## ADR-015 — Identidade Git e GitHub do projeto (aceita)
+**Contexto:** máquina tem três contas GitHub logadas; ativa era `victorlins-dev`; identidade global é `victorlins-dev`.
+**Decisão:** repositório `Victor-Hugo-Soares/bella-os` (criado pelo Victor em 2026-09-09). Identidade **local** do repositório: `Victor Hugo <116037876+Victor-Hugo-Soares@users.noreply.github.com>`. Conta ativa do GitHub CLI trocada para `Victor-Hugo-Soares` para operações deste repositório. Toda sessão valida `git config user.email` e `gh auth status` antes de push (gate G0).
+**Consequência:** trocar a conta ativa do `gh` afeta outros projetos na mesma máquina; documentado para Victor.
+
+## ADR-016 — Handoff e docx movidos para `docs/` (aceita)
+**Decisão:** `docs/BELLA_OS_AUTONOMOUS_HANDOFF.md` é a governança; `docs/source/Bella_OS_Handoff_Autonomo.docx` preservado como origem. Divergências encontradas entre os dois: nenhuma material (docx é versão condensada). O docx cita `.docx` numerando seções de forma diferente; o `.md` prevalece.
+
+## ADR-017 — Estoque, impressão e IA de fotos ficam fora do MVP, mas com tabelas reservadas no modelo (aceita)
+**Decisão:** `DOMAIN_MODEL.md` lista as tabelas; nenhuma migration delas antes da Fase E. `products.station_id`, `order_items.charge_on_cancel` e `product_images.source` já existem para não exigir migração destrutiva depois.
+
+## ADR-018 — Testes de integração rodam contra Postgres real, nunca mock de banco (aceita)
+**Decisão:** Vitest com banco em Docker (local) / service container (CI); cada arquivo de teste usa schema ou transação isolada; seed reproduzível com dois tenants. Sem `pglite`/mocks para regras que dependem de constraints, locks ou RLS.
