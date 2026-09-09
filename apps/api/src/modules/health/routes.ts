@@ -23,8 +23,10 @@ export async function healthRoutes(app: FastifyInstance, deps: HealthDeps): Prom
       return { status: 'degraded', checks: { database: 'not_configured' } };
     }
     try {
+      const startedAt = performance.now();
       await deps.db.db.execute(sql`select 1`);
-      return { status: 'ready', checks: { database: 'ok' } };
+      const database_latency_ms = Math.round((performance.now() - startedAt) * 100) / 100;
+      return { status: 'ready', checks: { database: 'ok', database_latency_ms } };
     } catch (err) {
       request.log.error({ err }, 'banco indisponível');
       reply.status(503);

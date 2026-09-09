@@ -8,6 +8,7 @@ import { registerErrorHandler } from './plugins/error-handler';
 import { healthRoutes } from './modules/health/routes';
 import { createAuth } from './modules/identity/auth';
 import { identityRoutes } from './modules/identity/routes';
+import { deviceRoutes } from './modules/identity/devices/routes';
 
 // Versão lida do package.json em tempo de build/execução (tsup embute o JSON).
 import packageJson from '../package.json' with { type: 'json' };
@@ -34,9 +35,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         paths: [
           'req.headers.authorization',
           'req.headers.cookie',
+          'req.headers["x-device-token"]',
           '*.password',
           '*.pin',
           '*.token',
+          '*.tokenHash',
+          '*.pinHash',
         ],
         censor: '[REDACTED]',
       },
@@ -77,6 +81,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       baseURL: config.BETTER_AUTH_URL,
     });
     await app.register(identityRoutes, { auth });
+    await app.register(deviceRoutes, { db: db.db, auth });
   }
 
   return app;

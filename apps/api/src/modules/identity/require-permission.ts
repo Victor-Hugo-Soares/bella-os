@@ -103,3 +103,14 @@ export function requirePermission(db: Db, auth: Auth, key: PermissionKey) {
     request.actor = actor;
   };
 }
+
+/**
+ * Exige apenas uma sessão + membership ativo no tenant do header, sem checar nenhuma
+ * permissão específica — para operações de identidade sobre si mesmo (ex.: trocar o
+ * próprio PIN), que não fazem sentido gatear por uma chave de permissão de negócio.
+ */
+export function requireAnySession(db: Db, auth: Auth) {
+  return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
+    request.actor = await resolveActor(request, db, auth);
+  };
+}
