@@ -20,6 +20,8 @@
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @bella/db migrate",
+    "db:app-role": "pnpm --filter @bella/db app-role",
+    "db:seed": "pnpm --filter @bella/db seed",
     "db:generate": "pnpm --filter @bella/db generate",
     "db:check": "pnpm --filter @bella/db check",
     "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm test"

@@ -13,6 +13,9 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
+  "dependencies": {
+    "uuidv7": "1.2.1"
+  },
   "devDependencies": {
     "@types/node": "24.13.3",
     "typescript": "5.9.3",

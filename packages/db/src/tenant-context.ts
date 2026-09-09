@@ -31,3 +31,19 @@ export async function currentTenantId(tx: Tx | Db): Promise<string | null> {
   );
   return result.rows[0]?.tenant ?? null;
 }
+
+/**
+ * Executa `fn` numa transação DELIBERADAMENTE sem `app.tenant_id` — para operações de
+ * plataforma que legitimamente cruzam tenants (criar um tenant novo, listar tenants como
+ * superadmin). Só serve para tabelas globais/sem RLS (organizations, tenants, users,
+ * platform_admins): tabelas com RLS por tenant não devolvem nenhuma linha sem contexto
+ * (ver DOMAIN_MODEL.md §3 "sem contexto, nenhuma linha visível"), então usar isto para
+ * uma tabela de negócio simplesmente não funciona — não é uma forma de contornar RLS.
+ * Existe como marcador explícito no código: quem lê a chamada sabe que é intencional.
+ */
+export async function withoutTenant<T>(db: Db, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('app.tenant_id', '', true)`);
+    return fn(tx);
+  });
+}

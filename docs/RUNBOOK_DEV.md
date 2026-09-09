@@ -13,7 +13,9 @@
 pnpm install
 cp .env.example .env          # ajuste se o Postgres não for o do compose
 pnpm db:up                    # sobe postgres:16 na porta 5433 (cria bella_dev e bella_test)
-pnpm db:migrate               # aplica migrations (drizzle) em DATABASE_URL
+pnpm db:migrate               # aplica migrations (drizzle) em DATABASE_URL, dono do banco
+pnpm db:app-role               # define a senha do papel restrito bella_app (APP_DB_PASSWORD)
+pnpm db:seed                   # cria os tenants "bella" e "demo" com papéis/permissões
 pnpm dev                      # API em http://localhost:3001 (health em /health, ready em /ready)
 ```
 
@@ -29,8 +31,16 @@ pnpm dev                      # API em http://localhost:3001 (health em /health,
 | `pnpm --filter @bella/api start` | roda a API compilada |
 | `pnpm db:up` / `pnpm db:down` | sobe/derruba o Postgres do compose |
 | `pnpm db:generate` | gera migration SQL a partir do schema Drizzle (`packages/db/src/schema`) |
-| `pnpm db:migrate` | aplica migrations pendentes |
+| `pnpm db:migrate` | aplica migrations pendentes (roda como `DATABASE_URL`, o dono do banco) |
+| `pnpm db:app-role` | define/atualiza a senha do papel restrito `bella_app` (lê `APP_DB_PASSWORD`) — rode depois de migrar |
+| `pnpm db:seed` | cria/atualiza os tenants fictícios `bella` e `demo` com papéis e permissões (idempotente) |
 | `pnpm db:check` | valida consistência das migrations |
+
+`bella_app` é o papel que a aplicação usa de fato: sem `BYPASSRLS`, sem ser dono das
+tabelas, sujeito às políticas de isolamento por tenant (ADR-004). `DATABASE_URL` continua
+sendo só para migrations/seed/operações administrativas; `APP_DATABASE_URL` é para tudo
+que representa uma requisição real da API. Ver `docs/DOMAIN_MODEL.md §3` e
+`packages/db/migrations/0000_*.sql`.
 
 Variáveis: ver `.env.example`. `tsx` carrega `.env` da raiz automaticamente em `dev` e `db:migrate`; para `test:integration` exporte `TEST_DATABASE_URL` no shell (ou use um `.env` carregado pelo seu terminal).
 
