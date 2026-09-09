@@ -48,9 +48,9 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 - Fase: **A — Fundação**. Milestone concluído: **M0 Bootstrap** (2026-09-09, Fable 5.1). Em andamento: nenhum. Próximo: **M1 — Banco, tenant e isolamento**.
 - Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares`; Docker Desktop com falha (ENV-1, ver `docs/KNOWN_ISSUES.md`); workspace em OneDrive (ENV-5).
-- Branch: `main`. Último checkpoint: commits de bootstrap (docs, tooling, código) + estado. CI: primeira execução no push inicial (ver `docs/PROJECT_STATE.md`).
-- Último gate aprovado: G0, G1, G2 (escopo M0), G3 (health/ready/erros), G6 e G9 parciais.
-- Bloqueios: nenhum. Integração com Postgres validada apenas na CI enquanto Docker local não funciona.
+- Branch: `main`. Último checkpoint: bootstrap completo em `main` (`1e52854` + commit de estado final). CI verde (quality, integração Postgres, build+smoke).
+- Último gate aprovado: G0, G1, G2 (escopo M0, integração provada na CI), G3 (health/ready/erros), G6 e G9 parciais. Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`).
+- Bloqueios: nenhum. Integração com Postgres validada apenas na CI enquanto Docker local não funciona (ENV-1).
 
 ## Próximo passo exato
 

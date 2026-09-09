@@ -4,8 +4,8 @@
 
 **Atualizado em:** 2026-09-09 (sessão de bootstrap com Fable 5.1)
 **Fase:** A — Fundação · **Milestone concluído:** M0 Bootstrap · **Próximo:** M1 Banco, tenant e isolamento (`ACTIVE_PLAN.md`)
-**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Último commit:** ver `git log -1` (bootstrap: `3197077` docs → `5edffcd` tooling → `28e3763` código → commit de estado)
-**CI:** workflow `.github/workflows/ci.yml` criado; primeira execução disparada no push inicial (resultado registrado abaixo em "Evidências").
+**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commits do bootstrap:** `3197077` docs → `5edffcd` tooling → `28e3763` código → `1e52854` fix journal + estado → (este commit) estado final
+**CI:** `.github/workflows/ci.yml` — **verde** em `main` (run 2, commit `1e52854`): quality, integração com Postgres 16, build + smoke.
 
 ## 1. Estado funcional do produto
 Nenhuma funcionalidade de restaurante existe ainda. Existe:
@@ -38,7 +38,8 @@ Windows 11, Node 24.18, pnpm 10.34.5, git 2.55, gh 2.96 (conta ativa `Victor-Hug
 - `pnpm lint`, `pnpm format`, `pnpm typecheck`: verdes.
 - `pnpm test`: 26 testes (18 dinheiro, 3 contratos, 5 API) verdes.
 - `pnpm build` + execução do bundle em modo produção: `/health` ok (versão 0.0.1), `/ready` degraded/not_configured, 404 em envelope. Um bug real de empacotamento (`pg` embutido) foi encontrado pelo smoke e corrigido.
-- Integração com Postgres (`apps/api/test/integration/db.test.ts`): **não executada localmente** (Docker). Validação pela CI — anotar aqui o resultado: `[CI run #1: ver gh run list]`.
+- Integração com Postgres (`apps/api/test/integration/db.test.ts`, 6 testes: select 1, tabela de controle do migrador, `withTenant` define e não vaza `app.tenant_id`, rejeita não-UUID, transações concorrentes com tenants distintos não se misturam, `/ready` com banco real): **não executada localmente** (Docker). **CI run 2 (`1e52854`): 6/6 verdes** com Postgres 16 em service container. CI run 1 falhou por journal ausente do Drizzle (corrigido; ver `QA_LEDGER.md`).
+- CI completa (quality, integração, build+smoke): **verde** em `main` no commit `1e52854`.
 
 ## 5. Decisões que não podem ser esquecidas
 ADR-001 a ADR-018 em `DECISIONS.md`. As mais estruturantes: monólito modular TS (001); Postgres + centavos (002); Drizzle (003); tenant_id + RLS (004); Better Auth + dispositivo/PIN + token de mesa (005); SSE com outbox (006); idempotência por chave (007); ledger append-only (008); pagamento manual no MVP (009); QR fixo com confirmação (010); cloud-first Railway (011); identidade Git do projeto (015).
