@@ -28,3 +28,20 @@ export function tenantIsolationPolicy(tenantIdColumn: PgColumn) {
     withCheck: check,
   });
 }
+
+/**
+ * Segunda policy PERMISSIVA (combinada com OR à de tenant, nunca a substitui — regra do
+ * Postgres para múltiplas policies permissivas no mesmo comando) que deixa um usuário
+ * enxergar as PRÓPRIAS linhas via `app.user_id`, sem precisar de `app.tenant_id` definido.
+ * Único uso hoje: `memberships`, para `GET /v1/me/tenants` (M5) descobrir a qual tenant
+ * um usuário pertence antes de existir qualquer contexto de tenant — ver `withUser()`.
+ * Só `for: 'select'`: nunca permite inserir/alterar fora do contexto de tenant normal.
+ */
+export function selfLookupPolicy(userIdColumn: PgColumn) {
+  return pgPolicy('self_membership_lookup', {
+    as: 'permissive',
+    for: 'select',
+    to: bellaAppRole,
+    using: sql`${userIdColumn} = nullif(current_setting('app.user_id', true), '')::uuid`,
+  });
+}

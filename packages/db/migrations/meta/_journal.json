@@ -29,6 +29,13 @@
       "when": 1788976453217,
       "tag": "0003_m3_devices_pairing_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788984548008,
+      "tag": "0004_red_the_stranger",
+      "breakpoints": true
     }
   ]
 }

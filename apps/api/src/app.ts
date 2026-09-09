@@ -9,6 +9,8 @@ import { healthRoutes } from './modules/health/routes';
 import { createAuth } from './modules/identity/auth';
 import { identityRoutes } from './modules/identity/routes';
 import { deviceRoutes } from './modules/identity/devices/routes';
+import { tenantsRoutes } from './modules/identity/tenants-routes';
+import { catalogRoutes } from './modules/catalog/routes';
 
 // Versão lida do package.json em tempo de build/execução (tsup embute o JSON).
 import packageJson from '../package.json' with { type: 'json' };
@@ -82,6 +84,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     });
     await app.register(identityRoutes, { auth });
     await app.register(deviceRoutes, { db: db.db, auth });
+    await app.register(tenantsRoutes, { db: db.db, auth });
+    await app.register(catalogRoutes, { db: db.db, auth });
   }
 
   return app;

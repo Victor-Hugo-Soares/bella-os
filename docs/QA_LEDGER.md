@@ -196,3 +196,34 @@ Frentes:
 - [regressão encontrada e corrigida] `.font-mono-tabular` nunca aplicava a família JetBrains Mono, só `tabular-nums` — bug existente desde o M4, só percebido ao inspecionar fonte por família real via `document.fonts`. Corrigido; confirmado com `document.fonts.check(spec, textoRealDaTela)` (sem o texto, o `check()` dá falso-negativo por causa dos múltiplos `@font-face` de subset que o `next/font` gera — lição registrada, não é bug de fonte).
 - [build real] `pnpm check` e `pnpm build` verdes no monorepo inteiro após as mudanças.
 - **Escopo:** puramente visual/estrutural, sem mudança de contrato de API, permissão ou dado — não exige 3 frentes (não é dinheiro/comanda/autenticação/tenant), 2 frentes (visual real + build) suficientes.
+
+---
+
+## Milestone M5 — Catálogo (API + admin, Fase B)
+
+### 2026-09-09 — M5 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M5) escreveu o escopo cortado explicitamente antes de codar: CRUD completo de `stations`/`categories`/`products`; API pronta (sem UI) de `modifier_groups`/`modifiers`/vínculo produto↔grupo; `product_images`/`pizza_flavor_groups` fora do milestone. Gate de Plano respondido no próprio arquivo.
+
+### 2026-09-09 — M5 — G2 Dados/contratos — PASS
+Frentes:
+- [schema] `packages/db/src/schema/catalog.ts`: 6 tabelas, todas com `tenant_id` + `tenantIsolationPolicy` (ADR-021) — nenhuma exceção como `devices` (ADR-025), confirmado que não havia motivo para exceção aqui (sempre há tenant conhecido no contexto da requisição).
+- [migração] `drizzle-kit generate`/`check` limpos; migration `0004` inspecionada linha a linha (ordem: tabelas → FKs → índices → policies, mesmo padrão do M1).
+- **Achado real de arquitetura durante a implementação:** `GET /v1/me/tenants` (necessário para o front descobrir o tenant ativo sem seletor de UI) não funcionava com `withoutTenant()` — `memberships` tem RLS por tenant, então sem `app.tenant_id` a policy de isolamento não deixa nenhuma linha visível (comportamento correto, mas bloqueava a própria descoberta do tenant). Corrigido com uma segunda policy permissiva (`selfLookupPolicy`, só `SELECT`, filtrando por `app.user_id`) que o Postgres combina com OR à policy de tenant — não é bypass, só autoconsulta. Ver ADR-030.
+
+### 2026-09-09 — M5 — G3/G6 Feature, permissão e segurança — PASS
+Frentes (`apps/api/test/integration/catalog.test.ts`, roda contra Postgres real na CI, API conectada como `bella_app`):
+- fluxo feliz: `owner` cria estação → categoria → produto vinculado; produto aparece na listagem.
+- validação cruzada: produto rejeita `categoryId` de outro tenant mesmo com `stationId` válido do tenant certo (`VALIDATION_ERROR`, 400) — prova que a checagem de pertencimento ao tenant é por FK individual, não só "algum id existe".
+- toggle de disponibilidade (`PATCH .../availability`) funciona isoladamente da edição geral; desativar (`isActive=false`) tira da listagem padrão mas a linha **continua no banco** (`?includeInactive=true` ainda mostra) — prova de que não existe DELETE físico.
+- negativo: papel `kitchen` (só tem `kitchen.operate` no seed) recebe 403 ao tentar `catalog.manage`.
+- isolamento entre tenants: produto criado no Bella não aparece na listagem do Demo, mesmo com um dono do Demo autenticado de verdade fazendo a consulta (não é só "a query não pediu", é "a RLS não deixaria mesmo que pedisse").
+- grupos de modificador/modificadores/vínculo produto↔grupo: criar, vincular a um produto real, desvincular — API pronta para quando a UI existir (M6/M7), sem exigir migração nova depois.
+- `GET /v1/me/tenants`: devolve o tenant certo sem `X-Tenant-Id`, não vaza o tenant Demo (onde o usuário não tem membership), 401 sem sessão.
+- **Total:** 9 testes novos em `catalog.test.ts`, cobrindo positivo/negativo de permissão e isolamento — suficiente para 2 frentes (catálogo não é dinheiro/comanda/autenticação/tenant crítico no sentido do handoff; é dado estruturado com permissão), mas o teste de isolamento entre tenants dá uma terceira frente de fato (segurança).
+
+### 2026-09-09 — M5 — G5 UX/mobile (admin) — PASS
+- [visual, browser real, API sem banco] `/admin/catalog`, `/admin/catalog/products`: navegação por abas renderiza, estado de erro estruturado aparece corretamente (`Rota não encontrada: GET /v1/me/tenants` — API de teste sem `DATABASE_URL`, por design, mesma limitação documentada desde o M4/ADR-028), sem crash de render em nenhuma aba.
+- **Limitação real registrada, não escondida:** sem Postgres local (ENV-1), não foi possível testar visualmente o fluxo completo de criar estação → categoria → produto na tela real (só via CI, que tem Postgres real). Os 4 estados obrigatórios (loading/vazio/erro/sucesso) foram implementados e revisados no código para os três, mas só o estado de erro foi confirmado ao vivo num browser real neste milestone.
+
+### 2026-09-09 — M5 — `pnpm check` + build do monorepo — PASS
+`pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo as novas rotas de `apps/web` (`/admin/catalog`, `/admin/catalog/{stations,categories,products}`) geradas no build de produção.
