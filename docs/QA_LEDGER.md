@@ -137,7 +137,13 @@ Frentes:
 - [smoke real — regressão de build encontrada e corrigida] `pnpm build` falhou de verdade duas vezes em sequência: (1) esbuild tentando resolver estaticamente binários `.node` de todas as plataformas do `@node-rs/argon2` — corrigido com `external` no tsup; (2) mesmo `external`, o bundle compilado não resolvia o pacote em runtime (`ERR_MODULE_NOT_FOUND`) por causa do isolamento de `node_modules` do pnpm — corrigido declarando `@node-rs/argon2` como dependência direta também de `apps/api`. Ambos só apareceram rodando o binário de verdade, não no `tsc`/`pnpm build` sozinhos — reforça a lição do M0 (ADR-026).
 - [integração — CI, Postgres 16 real, conectando como `bella_app`] `devices.test.ts` (7 testes): pareamento completo (gerar código → trocar por token → token funciona numa rota real); código usado duas vezes rejeitado; código expirado rejeitado; token revogado para de funcionar; dispositivo de um tenant não verifica PIN de membership de outro tenant (RLS de `memberships` continua protegendo mesmo com `devices` sem RLS); geração sem permissão negada; geração em sequência nunca falha por colisão sem tratamento; inspeção independente confirma que só o hash do token é gravado, nunca o valor puro.
 - [integração — CI] `pin.test.ts` (5 testes): PIN certo verifica; PIN errado nega e conta tentativa; 5 tentativas erradas bloqueia (6ª tentativa nega mesmo com PIN certo); bloqueio expirado (simulado) permite verificar de novo e zera o contador; membership sem PIN configurado é negado sem tentar comparar hash inexistente.
-- **Total esperado:** 44 testes de integração (32 do M1+M2 + 12 novos) em 7 arquivos — resultado real da CI registrado em `PROJECT_STATE.md` assim que confirmado.
+- **Total confirmado na CI (run 3, verde): 45/45 testes de integração em 7 arquivos.**
+
+### 2026-09-09 — M3 — CI run 3 — PASS
+`lint · format · typecheck · unit`: verde. `integração (Postgres 16)`: **45/45 testes verdes em 7 arquivos**. `build + smoke`: verde. PR #3 mergeado em `main` (`a751062`).
+
+### 2026-09-09 — M3 — Gate Git — PASS
+PR #3 (`claude/m3-devices-pin` → `main`), 3 commits de código (feature + 2 correções de bugs reais encontrados pela própria CI: transação de PIN e escopo de tenant no setup de teste) + docs, diff revisado, sem segredos, CI verde nos 3 jobs antes do merge.
 
 ### 2026-09-09 — M3 — CI run 1 (frente independente de integração) — FAIL → corrigido
 - [CI run 1] `quality` e `build+smoke` verdes; `integração (Postgres 16)` **falhou**: 4 de 45 testes.

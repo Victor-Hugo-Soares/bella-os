@@ -1,49 +1,53 @@
 # Bella OS — Plano Ativo
 
-> Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.2 (`devices`, `pairing_codes`) → `ARCHITECTURE.md` §5 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
+> Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `docs/FRONTEND_GUIDELINES.md` → `DOMAIN_MODEL.md` §2 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M2 (login de staff, sessão, `requirePermission`) está mergeado em `main` (commit `c9bf056`, PR #2, CI verde: 32/32 testes de integração). Este plano do M3 assume isso como ponto de partida.
+> M3 (dispositivos, PIN) está mergeado em `main` (commit `a751062`, PR #3, CI verde: 45/45 testes de integração). Este plano do M4 assume isso como ponto de partida.
 
-## Milestone atual: **M3 — Dispositivos, PIN e observabilidade mínima** (Fase A)
+## Milestone atual: **M4 — Web shell, login e design system** (Fase A, primeira tela real)
 
 ### Problema
-Hoje só existe login de staff com email+senha (M2). Mas KDS e caixa são dispositivos **compartilhados** — ninguém vai digitar email/senha no meio do rush. Falta: (1) um jeito de um dispositivo (tablet da cozinha, PC do caixa) se autenticar como "este dispositivo, desta estação/registradora", (2) um PIN curto para atribuir a ação a uma pessoa sem exigir login completo, (3) observabilidade suficiente para diagnosticar problemas em produção sem depender só de "printar e olhar".
+Toda a Fase A até aqui é só API. Não existe nenhuma tela. O M4 é o primeiro milestone de frontend: criar `apps/web`, provar que o design system do Victor (`FRONTEND_GUIDELINES.md`) funciona de verdade, e ter uma tela de login funcional consumindo o M2. Não é para construir cardápio/KDS/admin ainda (isso é Fase B em diante) — é a fundação de UI.
+
+### Pesquisa já feita nesta sessão (não repetir — confirmar de novo só se a instalação divergir)
+Versões atuais confirmadas via npm em 2026-09-09: `next@16.3.4`, `react@19.3.0`, `react-dom@19.3.0`, `tailwindcss@4.3.3`. O CLI de componentes hoje se chama **`shadcn`** (pacote `shadcn@4.21.0`), não mais `shadcn-ui` — usar `npx shadcn@latest init`/`add`, conferindo a versão instalada antes.
 
 ### Resultado esperado
-1. Um gerente (autenticado, com `devices.manage`) gera um código de pareamento de 6 dígitos com TTL curto para um tipo de dispositivo (`kds`, `cashier`, `floor`, `admin`).
-2. O próprio dispositivo (sem login de staff) troca esse código por um token de longa duração, escopado (estação(ões) para KDS, registradora para caixa).
-3. Requisições de dispositivo se autenticam pelo token (header próprio, ex.: `X-Device-Token`), resolvido para um ator `{ type: 'device', deviceId, tenantId, kind, stationIds/cashRegisterId }` — mesma forma de ator do M2, mas outro tipo.
-4. Ações sensíveis feitas a partir de um dispositivo (desconto, cancelamento após produção, fechar caixa) exigem **PIN de operador** validado no momento (não é sessão — é confirmação pontual), com bloqueio por tentativas (`pin_failed_attempts`, `pin_locked_until` já existem em `memberships` desde o M1).
-5. Observabilidade: `/ready` reporta latência do banco; logs continuam sem vazar segredo (conferir que device token e PIN entram no redactor); um jeito simples de listar dispositivos ativos/revogar um.
+1. `apps/web` criado com Next.js 16 (App Router), TypeScript, Tailwind v4, integrado ao monorepo pnpm (workspace).
+2. Tokens de design aplicados de verdade: fontes (Schibsted Grotesk, Switzer, JetBrains Mono), paleta oklch dark/light, conforme `FRONTEND_GUIDELINES.md` — com o teste real (`document.fonts.check`) provando que carregaram, não só "parece certo visualmente".
+3. Três grupos de rota preparados (mesmo que só o de login tenha conteúdo real ainda): `/(customer)`, `/(kds)`, `/(admin)`.
+4. Tela de login (`/admin/login` ou equivalente) que chama a API real do M2 (`/api/auth/sign-in/email`), trata erro/loading/sucesso, e redireciona para uma página protegida simples que mostra `/v1/me`.
+5. CORS da API (`WEB_ORIGIN`, já preparado desde o M2) configurado e testado de verdade entre os dois processos (não só same-origin via proxy).
+6. `apps/web` builda e roda (`next build`, smoke real — mesma disciplina do M0/M3: rodar o build, não só confiar no dev server).
 
 ### Arquivos envolvidos
-- `packages/db/src/schema/devices.ts` novo: `devices`, `pairing_codes` (DOMAIN_MODEL.md §1.2) — **com RLS por tenant** (diferente de `users`/`sessions`: dispositivo pertence a um tenant).
-- `apps/api/src/modules/identity/devices/` novo: `routes.ts` (gerar código, trocar por token, revogar, listar), `service.ts`, `require-device.ts` (equivalente a `requirePermission` para ator de dispositivo).
-- `apps/api/src/modules/identity/pin.ts`: validar PIN (argon2id — **confirmar biblioteca atual antes de escrever código**, mesma disciplina do M2: não assumir de memória), bloqueio por tentativas.
-- `apps/api/src/config.ts`: nenhuma variável nova óbvia; revisar se o redactor do logger cobre o novo header de token de dispositivo.
-- Testes: `apps/api/test/integration/devices.test.ts` (pareamento, troca de código, expiração de TTL, revogação, isolamento entre tenants), `apps/api/test/integration/pin.test.ts` (PIN certo, PIN errado, bloqueio após N tentativas, desbloqueio por tempo).
+- `apps/web/` novo (estrutura do Next.js App Router).
+- `apps/web/src/app/globals.css` ou equivalente: tokens de `FRONTEND_GUIDELINES.md` como CSS custom properties + `@theme inline` do Tailwind v4 — **atenção ao gotcha já documentado**: `var(--font-display)` em `@layer base` sob `@theme inline` resolve vazio; usar stack literal ou classes utilitárias.
+- `apps/web/src/lib/api-client.ts`: cliente HTTP mínimo para a API (`fetch` com `credentials: 'include'`, base URL configurável).
+- `apps/web/src/app/(admin)/login/page.tsx`, `.../page.tsx` protegida pós-login.
+- `apps/api/.env`/config: `WEB_ORIGIN` apontando para a URL real do dev server do Next.
+- `.claude/launch.json` ou equivalente (se existir convenção no repo) para rodar `apps/web` em dev.
+- Testes: Playwright ainda não configurado no monorepo — **decidir e registrar** se entra neste milestone ou fica para quando houver mais telas (risco de escopo). Recomendação: instalar Playwright agora (mínimo: um teste E2E do fluxo de login), já que é a única forma real de provar CORS + cookie de sessão funcionando entre dois processos — inspeção visual sozinha não prova isso.
 
 ### Riscos
-- Escolha de biblioteca de hash de PIN/token: **pesquisar antes de implementar** (regra 12) — não assumir `argon2` sem checar se está mantido/instalável neste ambiente (build nativo pode ser um problema em CI/Windows; considerar `@node-rs/argon2` ou `bcrypt` como alternativas, decidir com evidência).
-- Token de dispositivo de longa duração é, na prática, um bearer token — se vazar, um atacante age como aquele dispositivo. Mitigar com escopo mínimo (só a(s) estação(ões)/registradora dele) e revogação fácil.
-- PIN é curto (4–6 dígitos) — por design, de baixa entropia; a segurança vem do bloqueio por tentativas + de ser sempre um segundo fator sobre um dispositivo já autenticado, nunca sozinho.
+- Tailwind v4 + Next.js 16: confirmar a integração atual (o setup de `@tailwindcss/postcss` ou plugin pode ter mudado) rodando `create-next-app` de verdade e inspecionando o que ele gera, em vez de assumir a configuração do Tailwind v3.
+- CORS + cookies entre `localhost:3000` (web) e `localhost:3001` (api): exige `credentials: 'include'` no fetch **e** `Access-Control-Allow-Credentials` + origem exata (não `*`) no servidor — já preparado no M2 (`cors` com `credentials: true`, `origin: config.WEB_ORIGIN`), mas nunca testado de ponta a ponta com dois processos reais.
+- Gotcha de fontes do Tailwind v4 (`FRONTEND_GUIDELINES.md`) é uma armadilha conhecida — testar com `document.fonts.check` desde o primeiro commit, não no final.
 
-### Testes (mínimo 3 frentes — crítico: autenticação de dispositivo + PIN)
-1. Integração: pareamento completo (gerar código → trocar por token → usar token) e código expirado/já usado é rejeitado.
-2. Integração: PIN certo passa, PIN errado nega, N+1 tentativas bloqueia, bloqueio expira.
-3. Integração: dispositivo de um tenant não autentica nem gera dado em outro tenant (reusa padrão `ownerDb`/`appDb` do M1/M2).
-4. Inspeção: nenhum token/PIN em log.
+### Testes (mínimo 2 frentes — mudança normal, não crítica)
+1. Build real (`next build`) + execução do servidor de produção compilado (não só `next dev`).
+2. E2E (Playwright, se instalado neste milestone) ou, no mínimo, teste manual documentado com evidência (screenshot) do fluxo de login completo entre os dois processos reais.
+3. Inspeção visual em pelo menos duas larguras (mobile e desktop), já que `FRONTEND_GUIDELINES.md` exige isso desde a primeira tela.
 
 ### Critérios de aceite
-- [ ] Pareamento de dispositivo funcional e testado (positivo + negativo + expiração).
-- [ ] PIN funcional e testado (positivo + negativo + bloqueio).
-- [ ] Isolamento entre tenants provado também para dispositivos.
-- [ ] `/ready` com latência do banco.
-- [ ] `pnpm check` verde; CI verde; nenhum segredo em log.
-- [ ] Docs atualizados; `ACTIVE_PLAN.md` reescrito para M4.
+- [ ] `apps/web` builda e roda de verdade (smoke do build de produção, não só dev).
+- [ ] Fontes carregam (`document.fonts.check` positivo para as 3 famílias).
+- [ ] Login funciona de ponta a ponta entre os dois processos reais (cookie de sessão via CORS).
+- [ ] `pnpm check` continua verde para o monorepo inteiro; CI atualizada para incluir `apps/web` (lint/typecheck/build).
+- [ ] Docs atualizados; `ACTIVE_PLAN.md` reescrito para o início da Fase B (catálogo).
 
 ### Gate de Plano (respondido em 2026-09-09)
-Problema entendido pelo comportamento esperado (equipe não loga com email/senha no rush) · afeta autenticação e segurança diretamente · falhas plausíveis: token de dispositivo vazado, PIN de baixa entropia sem bloqueio, biblioteca de hash escolhida sem verificar disponibilidade no ambiente · prova por integração positiva+negativa+expiração · rollback trivial (tabelas novas, sem dado real) · multi-tenant preservado (RLS em `devices`/`pairing_codes` desde o início).
+Problema entendido (nenhuma tela existe; login é a menor fatia vertical que prova a pilha toda) · solução menor não existiria (é preciso o front para provar CORS/cookie de verdade) · afeta UX e a primeira impressão do produto (padrão de estética é regra global do Victor, não opcional) · risco principal é técnico (Tailwind v4 + Next 16 + fontes), não de produto · prova por build real + E2E ou evidência manual · rollback trivial (`apps/web` é novo, sem dado) · multi-tenant preservado (nenhuma rota de negócio ainda, só login).
 
 ## Próximos milestones (resumo; detalhes em `ROADMAP.md`)
-M4 web shell + login + design system (primeira tela real) → Fase B (catálogo, mesas, QR).
+Fase B: M5 catálogo → M6 mesas/QR → M7 cardápio do cliente + carrinho.

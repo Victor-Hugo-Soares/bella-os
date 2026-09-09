@@ -46,21 +46,21 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **A — Fundação**. Milestone concluído: **M2 Auth staff, papéis, permissões** (2026-09-09). Em andamento: nenhum. Próximo: **M3 — Dispositivos, PIN, observabilidade**.
-- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**confirmar a cada push** — já voltou sozinho para outra conta no meio de uma sessão); Docker Desktop com falha (ENV-1 — diagnosticado como erro Windows 1920, provavelmente resolve com reboot; ver `docs/KNOWN_ISSUES.md`); workspace em OneDrive (ENV-5). CI é a frente de integração enquanto o Docker local não funciona — já provada confiável (pegou 4 bugs reais entre M0–M2).
-- Branch: `main`. Último commit: `c9bf056` (merge PR #2, M2). CI verde: quality, integração Postgres (32/32 testes), build+smoke.
-- Último gate aprovado: G0–G2 (M0–M2), G3, G6 (isolamento por tenant + autenticação + permissão, positivo/negativo, 3 frentes), G9 parciais. Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
+- Fase: **A — Fundação**. Milestone concluído: **M3 Dispositivos, PIN, observabilidade** (2026-09-09). Em andamento: nenhum. Próximo: **M4 — Web shell + login + design system**.
+- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push, não só uma vez no início** — voltou sozinho para outra conta 3 vezes em M2/M3, ver ENV-6); Docker Desktop com falha (ENV-1, provavelmente resolve com reboot); workspace em OneDrive (ENV-5). CI é a frente de integração enquanto o Docker local não funciona — já provada confiável (pegou 6+ bugs reais entre M0–M3).
+- Branch: `main`. Último commit: `a751062` (merge PR #3, M3). CI verde: quality, integração Postgres (45/45 testes), build+smoke.
+- Último gate aprovado: G0–G3 (M0–M3), G6 (isolamento por tenant + autenticação + permissão + dispositivo/PIN, positivo/negativo, 3 frentes), G9 parciais (latência em `/ready`). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
 - Bloqueios: nenhum.
 
 ## Próximo passo exato
 
-Executar o **M3** conforme `docs/ACTIVE_PLAN.md`: pareamento de dispositivo (código de 6 dígitos → token escopado por estação/registradora), PIN de operador (biblioteca de hash a pesquisar antes de implementar — regra 12), observabilidade mínima (`/ready` com latência). Criar branch `claude/m3-devices-pin`.
+Executar o **M4** conforme `docs/ACTIVE_PLAN.md`: criar `apps/web` (confirmar versão atual do Next.js/App Router antes de codar — regra 12), shell com as três superfícies por rota (cliente, KDS, admin), tela de login usando o M2, aplicando `docs/FRONTEND_GUIDELINES.md`. Criar branch `claude/m4-web-shell`.
 
 ## Arquitetura atual (resumo; detalhes em `docs/ARCHITECTURE.md`)
 
 - Forma: monólito modular TypeScript em monorepo pnpm. `apps/api` (Fastify 5, REST + SSE), `apps/web` (Next.js, três superfícies por rota — ainda não criado), `packages/{domain,contracts,db,config}`.
 - Banco: PostgreSQL 16 via Drizzle ORM; migrations SQL versionadas; `tenant_id` em toda tabela de negócio + RLS declarada na própria schema (`pgPolicy`/`.enableRLS()`, ADR-021) via `withTenant()`/`withoutTenant()`; papel de aplicação `bella_app` sem BYPASSRLS e sem ser dono (ADR-020, provado no M1); dinheiro `bigint` centavos; status `text` + `CHECK`; UUID v7 (`@bella/domain newId()`, ADR-019).
-- Auth: Better Auth 1.7.3 (staff, email+senha — **funcional desde o M2**: login, sessão, `/v1/me`, `requirePermission()`) + dispositivos pareados com token escopado + PIN de operador (M3); cliente com token de sessão de mesa assinado em cookie httpOnly. Permissões por chaves fixas em `@bella/domain/permissions.ts`, checadas no servidor. API roda como `bella_app` (`APP_DATABASE_URL`), não como dono do banco (ADR-024).
+- Auth: Better Auth 1.7.3 (staff, email+senha — login, sessão, `/v1/me`, `requirePermission()`, M2) + dispositivos pareados com token escopado (SHA-256) + PIN de operador (argon2id via `@node-rs/argon2`, bloqueio por tentativas — **funcional desde o M3**); cliente com token de sessão de mesa assinado em cookie httpOnly (Fase B). Permissões por chaves fixas em `@bella/domain/permissions.ts`, checadas no servidor. API roda como `bella_app` (`APP_DATABASE_URL`), não como dono do banco (ADR-024). `devices`/`pairing_codes` são as únicas tabelas de negócio sem RLS, de propósito (ADR-025).
 - Realtime: SSE por canais com outbox `domain_events` e replay por `Last-Event-ID`; polling de segurança no KDS.
 - Filas: tabela `jobs` no Postgres (`SKIP LOCKED`). Sem Redis, sem WebSocket, sem microserviços.
 - Hosting: Railway (api, web, Postgres; staging + production). Cloud-first; sem mutação offline no KDS/caixa; recomendação de failover 4G ao restaurante.
