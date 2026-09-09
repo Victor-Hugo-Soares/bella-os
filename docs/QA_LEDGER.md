@@ -108,3 +108,9 @@ Frentes:
 
 ### 2026-09-09 — M2 — G6 Segurança (autenticação/autorização/tenant) — PASS
 Evidência de 3+ frentes para mudança crítica (autenticação + permissão + tenant): testes de integração via HTTP real (transporte), `resolveActor`/`requirePermission` contra banco real conectado como `bella_app` (não o dono — a mesma lição do M1 aplicada de novo), inspeção do bundle de produção (nada embutido incorretamente). Positivo e negativo cobertos para dois papéis (`cashier` vs. permissões de `owner`/gerência).
+
+### 2026-09-09 — M2 — CI run 1 (frente independente de integração) — FAIL → corrigido
+- [CI run 1] `quality` e `build+smoke` verdes; `integração (Postgres 16)` **falhou**: 4 de 32 testes — `sign-up`/`sign-in` chegavam ao Better Auth com corpo `undefined` ("[body] Invalid input: expected object, received undefined").
+- Causa raiz: `addContentTypeParser('*', ...)` sozinho não sobrescreve o parser default de `application/json` — o Fastify guarda o wildcard sob uma chave própria (`''`) e só recorre a ela quando não há parser específico para o content-type; `application/json` já tinha um parser (herdado por cópia do Map ao encapsular o plugin), então ele sempre vencia. Confirmado lendo `fastify/lib/content-type-parser.js` (`getParser`/`existingParser`) depois do erro real na CI — não foi hipótese, foi diagnóstico via leitura do código-fonte instalado após reproduzir a falha.
+- Correção: `application/json` sobrescrito explicitamente (além do wildcard `'*'`) com o mesmo parser de passagem em buffer, escopado ao plugin `identityRoutes`.
+- Resultado da segunda execução: registrado abaixo assim que confirmado.

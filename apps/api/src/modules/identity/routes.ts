@@ -13,15 +13,29 @@ export interface IdentityDeps {
  * do Better Auth é uma função `(Request) => Promise<Response>` no padrão Fetch; ele lê
  * o corpo da requisição sozinho, então o parser de JSON default do Fastify precisa
  * ficar DESLIGADO só dentro deste plugin (escopo via encapsulamento do Fastify) — senão
- * o corpo já teria sido consumido antes de chegar aqui. Corpo é capturado como Buffer
- * bruto e usado para montar um `Request` do Fetch manualmente.
+ * o corpo já teria sido consumido/parseado antes de chegar aqui.
+ *
+ * `addContentTypeParser('*', ...)` sozinho NÃO basta: por baixo, o Fastify guarda o
+ * wildcard sob uma chave própria (`''`) e só recorre a ela quando não existe parser
+ * específico para aquele content-type — e o parser default de `application/json` já
+ * está registrado desde a raiz (herdado por cópia do Map ao encapsular o plugin), então
+ * ele sempre vence para requisições JSON, mesmo dentro deste escopo. Confirmado lendo
+ * `fastify/lib/content-type-parser.js` (`getParser`/`existingParser`) depois de a CI
+ * pegar isto de verdade: sign-up/sign-in chegavam ao Better Auth com corpo `undefined`.
+ * Por isso `application/json` é sobrescrito explicitamente, além do wildcard.
  */
 export async function identityRoutes(app: FastifyInstance, deps: IdentityDeps): Promise<void> {
   const { auth } = deps;
 
-  app.addContentTypeParser('*', { parseAs: 'buffer' }, (_request, payload, done) => {
+  const passThroughBuffer = (
+    _request: unknown,
+    payload: Buffer,
+    done: (err: Error | null, body?: unknown) => void,
+  ): void => {
     done(null, payload);
-  });
+  };
+  app.addContentTypeParser('application/json', { parseAs: 'buffer' }, passThroughBuffer);
+  app.addContentTypeParser('*', { parseAs: 'buffer' }, passThroughBuffer);
 
   app.route({
     method: ['GET', 'POST'],
