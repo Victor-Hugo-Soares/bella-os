@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Clock, LogOut, Mail, User } from 'lucide-react';
+import { Clock, LogOut, Mail, UtensilsCrossed, User } from 'lucide-react';
 import { BellaMark } from '@/components/bella-mark';
 import { ApiError, apiFetch, authFetch } from '@/lib/api';
 
@@ -121,10 +122,13 @@ export default function DashboardPage() {
           </div>
         </dl>
 
-        <p className="mt-6 text-sm text-muted-foreground">
-          Confirmação de que o login (M2) funciona de ponta a ponta a partir do front (M4).
-          Catálogo, mesas e pedidos chegam a partir do M5.
-        </p>
+        <Link
+          href="/admin/catalog"
+          className="mt-8 flex w-fit items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
+        >
+          <UtensilsCrossed className="h-4 w-4" strokeWidth={1.5} />
+          Gerenciar cardápio
+        </Link>
       </main>
     </div>
   );

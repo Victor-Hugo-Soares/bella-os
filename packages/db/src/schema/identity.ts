@@ -10,7 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { idColumn, timestamps } from './_columns';
-import { tenantIsolationPolicy } from './_rls';
+import { selfLookupPolicy, tenantIsolationPolicy } from './_rls';
 import { tenants } from './platform';
 
 /**
@@ -99,5 +99,6 @@ export const memberships = pgTable(
     uniqueIndex('memberships_user_id_tenant_id_key').on(t.userId, t.tenantId),
     check('memberships_status_check', sql`${t.status} in ('active', 'disabled')`),
     tenantIsolationPolicy(t.tenantId),
+    selfLookupPolicy(t.userId),
   ],
 ).enableRLS();

@@ -47,3 +47,22 @@ export async function withoutTenant<T>(db: Db, fn: (tx: Tx) => Promise<T>): Prom
     return fn(tx);
   });
 }
+
+/**
+ * Executa `fn` numa transação com `app.user_id` definido (sem `app.tenant_id`) — só serve
+ * para tabelas que declararam explicitamente uma policy de autoconsulta por usuário
+ * (ex.: `memberships`, ver `schema/identity.ts`). Resolve um problema legítimo: descobrir
+ * a QUAL tenant um usuário pertence (`GET /v1/me/tenants`, M5) sem ainda ter nenhum
+ * `X-Tenant-Id` — `withoutTenant` não serve aqui porque `memberships` tem RLS por tenant
+ * (sem contexto, zero linhas). Não é bypass de RLS: só enxerga as próprias linhas do
+ * usuário, via uma segunda policy permissiva (`self_membership_lookup`) que o Postgres
+ * combina com OR à policy de tenant — nunca substitui isolamento entre tenants.
+ */
+export async function withUser<T>(db: Db, userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  if (!UUID_RE.test(userId)) throw new Error('userId inválido: esperado UUID');
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('app.tenant_id', '', true)`);
+    await tx.execute(sql`select set_config('app.user_id', ${userId}, true)`);
+    return fn(tx);
+  });
+}

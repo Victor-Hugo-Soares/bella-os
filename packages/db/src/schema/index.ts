@@ -6,3 +6,4 @@ export * from './identity';
 export * from './platform-ops';
 export * from './auth';
 export * from './devices';
+export * from './catalog';
