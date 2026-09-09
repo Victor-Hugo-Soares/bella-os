@@ -46,19 +46,19 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **A — Fundação**. Milestone concluído: **M3 Dispositivos, PIN, observabilidade** (2026-09-09). Em andamento: nenhum. Próximo: **M4 — Web shell + login + design system**.
+- Fase: **A — Fundação**. Milestone concluído (localmente, aguardando merge): **M4 Web shell + login + design system** (2026-09-09). Em andamento: abrir PR/CI remota do M4. Próximo depois do merge: **M5 — Catálogo (início da Fase B)**.
 - Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push, não só uma vez no início** — voltou sozinho para outra conta 3 vezes em M2/M3, ver ENV-6); Docker Desktop com falha (ENV-1, provavelmente resolve com reboot); workspace em OneDrive (ENV-5). CI é a frente de integração enquanto o Docker local não funciona — já provada confiável (pegou 6+ bugs reais entre M0–M3).
-- Branch: `main`. Último commit: `a751062` (merge PR #3, M3). CI verde: quality, integração Postgres (45/45 testes), build+smoke.
-- Último gate aprovado: G0–G3 (M0–M3), G6 (isolamento por tenant + autenticação + permissão + dispositivo/PIN, positivo/negativo, 3 frentes), G9 parciais (latência em `/ready`). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
-- Bloqueios: nenhum.
+- Branch: `claude/m4-web-shell` (ainda não mergeada). Base: `0ab8e1f` (main). `pnpm check`/`pnpm build` verdes localmente para o monorepo inteiro, incluindo `apps/web` pela primeira vez.
+- Último gate aprovado: G0–G3 (M0–M4), G5 (UX/mobile: fontes provadas via `document.fonts.check`, visual em duas larguras), G6 (isolamento por tenant + autenticação + permissão + dispositivo/PIN, positivo/negativo, 3 frentes — M1–M3). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
+- Bloqueios: nenhum. Pendência: abrir PR do M4, acompanhar CI remota, mergear.
 
 ## Próximo passo exato
 
-Executar o **M4** conforme `docs/ACTIVE_PLAN.md`: criar `apps/web` (confirmar versão atual do Next.js/App Router antes de codar — regra 12), shell com as três superfícies por rota (cliente, KDS, admin), tela de login usando o M2, aplicando `docs/FRONTEND_GUIDELINES.md`. Criar branch `claude/m4-web-shell`.
+Abrir o PR do M4 (`claude/m4-web-shell` → `main`), acompanhar CI, mergear se verde, reescrever `docs/ACTIVE_PLAN.md` para o M5 (catálogo).
 
 ## Arquitetura atual (resumo; detalhes em `docs/ARCHITECTURE.md`)
 
-- Forma: monólito modular TypeScript em monorepo pnpm. `apps/api` (Fastify 5, REST + SSE), `apps/web` (Next.js, três superfícies por rota — ainda não criado), `packages/{domain,contracts,db,config}`.
+- Forma: monólito modular TypeScript em monorepo pnpm. `apps/api` (Fastify 5, REST + SSE), `apps/web` (Next.js 16 App Router, três superfícies por rota — shell criado no M4, só login tem conteúdo real), `packages/{domain,contracts,db,config}`.
 - Banco: PostgreSQL 16 via Drizzle ORM; migrations SQL versionadas; `tenant_id` em toda tabela de negócio + RLS declarada na própria schema (`pgPolicy`/`.enableRLS()`, ADR-021) via `withTenant()`/`withoutTenant()`; papel de aplicação `bella_app` sem BYPASSRLS e sem ser dono (ADR-020, provado no M1); dinheiro `bigint` centavos; status `text` + `CHECK`; UUID v7 (`@bella/domain newId()`, ADR-019).
 - Auth: Better Auth 1.7.3 (staff, email+senha — login, sessão, `/v1/me`, `requirePermission()`, M2) + dispositivos pareados com token escopado (SHA-256) + PIN de operador (argon2id via `@node-rs/argon2`, bloqueio por tentativas — **funcional desde o M3**); cliente com token de sessão de mesa assinado em cookie httpOnly (Fase B). Permissões por chaves fixas em `@bella/domain/permissions.ts`, checadas no servidor. API roda como `bella_app` (`APP_DATABASE_URL`), não como dono do banco (ADR-024). `devices`/`pairing_codes` são as únicas tabelas de negócio sem RLS, de propósito (ADR-025).
 - Realtime: SSE por canais com outbox `domain_events` e replay por `Last-Event-ID`; polling de segurança no KDS.

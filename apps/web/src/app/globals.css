@@ -1,0 +1,94 @@
+@import 'tailwindcss';
+
+/*
+ * Tokens do design system do Bella OS (docs/FRONTEND_GUIDELINES.md). Dark por padrão
+ * (:root), light via classe `.light` no <html>. `--brand` é white-label — vem de
+ * tenant_settings.brand por tenant a partir da Fase B; aqui fica o valor default.
+ */
+:root {
+  --background: oklch(16.5% 0.005 220);
+  --foreground: oklch(94% 0.005 220);
+  --surface: oklch(20.5% 0.006 220);
+  --elevated: oklch(23.5% 0.007 220);
+  --card: var(--surface);
+  --muted-foreground: oklch(66% 0.012 220);
+  --brand: oklch(74% 0.11 184);
+  --brand-foreground: oklch(15% 0.01 200);
+  --brand-soft: oklch(74% 0.11 184 / 0.1);
+  --border: oklch(100% 0 0 / 0.06);
+  --border-strong: oklch(100% 0 0 / 0.12);
+  --input: oklch(100% 0 0 / 0.08);
+  --ring: oklch(74% 0.11 184 / 0.5);
+  --radius: 0.625rem;
+
+  --danger: oklch(70% 0.22 25);
+  --success: oklch(74% 0.18 145);
+
+  --font-display: 'Schibsted Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Switzer', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Menlo', monospace;
+}
+
+:root.light {
+  --background: oklch(98.5% 0.003 80);
+  --foreground: oklch(18% 0.01 220);
+  --surface: oklch(100% 0 0);
+  --elevated: oklch(100% 0 0);
+  --card: var(--surface);
+  --muted-foreground: oklch(45% 0.012 220);
+  --brand: oklch(62% 0.1 184);
+  --brand-foreground: oklch(98% 0.005 200);
+  --brand-soft: oklch(62% 0.1 184 / 0.1);
+  --border: oklch(0% 0 0 / 0.08);
+  --border-strong: oklch(0% 0 0 / 0.14);
+  --input: oklch(0% 0 0 / 0.06);
+  --ring: oklch(62% 0.1 184 / 0.5);
+}
+
+/* Tailwind v4 é CSS-first: @theme inline expõe os tokens acima como utilitários
+   (bg-background, text-foreground, border-border, etc). Ver gotcha documentado em
+   FRONTEND_GUIDELINES.md — var(--font-display) sob @theme inline NÃO é emitida em
+   :root, então @layer base usa o stack literal diretamente, não var(--font-display). */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-card: var(--card);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --radius-md: var(--radius);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: 'Switzer', ui-sans-serif, system-ui, sans-serif;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: 'Schibsted Grotesk', ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.025em;
+  }
+  .font-mono-tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

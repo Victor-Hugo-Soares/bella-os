@@ -2,3 +2,9 @@ packages:
   - apps/*
   - packages/*
   - tools/*
+
+# gerado pelo create-next-app do apps/web; movido para a raiz porque um
+# pnpm-workspace.yaml aninhado dentro de um pacote conflita com a raiz do workspace.
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
