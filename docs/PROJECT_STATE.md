@@ -2,10 +2,10 @@
 
 > Fotografia atual. Atualizar ao fim de cada milestone e antes de compactar contexto. Histórico vai para `memory/archive/`.
 
-**Atualizado em:** 2026-09-09 (M4 concluído, aguardando abertura/merge do PR, sessão Sonnet 5)
-**Fase:** A — Fundação · **Milestone concluído:** M4 Web shell + login + design system · **Próximo:** M5 Catálogo (início da Fase B, `ACTIVE_PLAN.md`)
-**Branch:** `claude/m4-web-shell` (ainda não mergeada) · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Base:** `0ab8e1f` (main)
-**CI local:** `pnpm check` e `pnpm build` verdes no monorepo inteiro (7 packages/apps, incluindo `apps/web` pela primeira vez). CI remota (GitHub Actions) a confirmar no PR.
+**Atualizado em:** 2026-09-09 (M4 + M4.1 mergeados, sessão Sonnet 5)
+**Fase:** A — Fundação · **Milestone concluído:** M4 Web shell + login + design system, mais M4.1 (refinamento visual por feedback direto do Victor) · **Próximo:** M5 Catálogo (início da Fase B, `ACTIVE_PLAN.md`)
+**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commit:** `4a8df72` (merge PR #5, M4.1; PR #4 do M4 em `08da6fd`)
+**CI:** verde nos 3 jobs em ambos os PRs (lint·format·typecheck·unit, integração Postgres, build+smoke).
 
 ## 1. Estado funcional do produto
 Pela primeira vez existe uma tela real: `/admin/login`. Um funcionário abre a URL, digita email/senha, e a chamada vai de verdade para a API (M2) em outro processo/porta — provando CORS e cookie de sessão entre origens diferentes, não só "parece que funciona". Cardápio do cliente e KDS existem só como placeholders de rota (conteúdo real é Fase B/C).
@@ -34,8 +34,11 @@ Sem mudança de fundo desde o M1 (Docker local com falha, ENV-1; workspace em On
 - **Limitação real registrada, não escondida:** sem Postgres local, não foi possível testar um login bem-sucedido → dashboard com dado real. Cobertos: CORS/cookie, fontes, visual em duas larguras, estados de erro/loading, extração de mensagem de erro nos dois formatos possíveis.
 - **Playwright adiado** (decisão registrada, não esquecimento): só uma tela real existe e não há dado de teste local para popular um fluxo de sucesso automatizado; reavaliar no M5/M6.
 
+## 4.1 M4.1 — Refinamento visual (feedback direto do Victor, mesmo dia)
+Victor testou a tela de login recém-mergeada e apontou que parecia "template de IA" — diagnóstico correto: os tokens de cor/fonte estavam certos, mas a composição não seguia o teste de `FRONTEND_GUIDELINES.md §1`. Refeito: login em split-screen com marca própria (`BellaMark`, SVG, não emoji), headline de produto e ícones Lucide nos campos; dashboard como início de shell de app (barra superior, chip de tenant, indicador de sessão). **Bug real corrigido de quebra:** `.font-mono-tabular` nunca trocava a fonte para JetBrains Mono desde o M4, só aplicava `tabular-nums`. Ver ADR-029. PR #5 mergeado (`4a8df72`), CI verde nos 3 jobs.
+
 ## 5. Decisões que não podem ser esquecidas
-**ADR-025** (`devices`/`pairing_codes` sem RLS, de propósito). **ADR-026** (`@node-rs/argon2`; duas regressões de build reais; bug de transação real no PIN). **ADR-027** (consultas de teste via dono precisam filtrar `tenant_id` explicitamente). **ADR-028** (M4: `next typegen` no typecheck; fontes em duas origens; `authFetch` precisa reconhecer dois formatos de erro; `next start` não pega rebuild em disco sozinho — sempre reiniciar depois de rebuildar).
+**ADR-025** (`devices`/`pairing_codes` sem RLS, de propósito). **ADR-026** (`@node-rs/argon2`; duas regressões de build reais; bug de transação real no PIN). **ADR-027** (consultas de teste via dono precisam filtrar `tenant_id` explicitamente). **ADR-028** (M4: `next typegen` no typecheck; fontes em duas origens; `authFetch` precisa reconhecer dois formatos de erro; `next start` não pega rebuild em disco sozinho — sempre reiniciar depois de rebuildar). **ADR-029** (M4.1: login/dashboard redesenhados por feedback direto sobre "cara de IA"; bug real do `.font-mono-tabular`).
 
 ## 6. Perguntas abertas para o Victor
 Sem mudança — ver `PRODUCT_CONTEXT.md §2`.
@@ -43,7 +46,6 @@ Sem mudança — ver `PRODUCT_CONTEXT.md §2`.
 ## 7. Dependendo do Victor / pendências operacionais
 - Reiniciar a máquina para tentar destravar o Docker Desktop (não bloqueante, mas destravaria testar login bem-sucedido de ponta a ponta localmente).
 - Decidir se torna o repositório privado (ainda pendente desde o bootstrap).
-- Abrir/acompanhar o PR do M4 (`claude/m4-web-shell` → `main`) assim que a CI remota confirmar verde.
 
 ## 8. Próximo passo exato
-Abrir o PR do M4, acompanhar CI remota, mergear se verde, e então reescrever `ACTIVE_PLAN.md` para o M5 (catálogo, início da Fase B), conforme `docs/ROADMAP.md`.
+Reescrever `ACTIVE_PLAN.md` para o M5 (catálogo, início da Fase B), conforme `docs/ROADMAP.md`, e começar a execução.
