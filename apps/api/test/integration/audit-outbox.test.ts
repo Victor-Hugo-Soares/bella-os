@@ -5,6 +5,7 @@ import { runMigrations } from '@bella/db/migrate';
 import { seed, SEED_TENANTS } from '@bella/db/seed';
 import { setAppRolePassword } from '@bella/db/set-app-role-password';
 import { newId } from '@bella/domain';
+import { expectPgErrorMatching } from './_pg-error';
 
 /**
  * (e) Prova que uma mutação de negócio + auditoria + evento de outbox nascem juntos,
@@ -135,7 +136,7 @@ describe('(f) idempotency_keys tem UNIQUE (tenant_id, scope, key)', () => {
       );
 
     await insertOnce();
-    await expect(insertOnce()).rejects.toThrow(/duplicate key|unique/i);
+    await expectPgErrorMatching(insertOnce(), /duplicate key|unique/i);
   });
 
   it('a mesma chave em escopos diferentes é permitida (a unicidade é por escopo)', async () => {

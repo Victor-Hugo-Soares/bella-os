@@ -4,6 +4,7 @@ import { createDb, schema, withTenant, withoutTenant, type DbHandle } from '@bel
 import { runMigrations } from '@bella/db/migrate';
 import { seed, SEED_TENANTS } from '@bella/db/seed';
 import { setAppRolePassword } from '@bella/db/set-app-role-password';
+import { expectPgErrorMatching } from './_pg-error';
 
 /**
  * Prova o isolamento entre tenants (ADR-004, DOMAIN_MODEL.md §3, ACTIVE_PLAN.md M1
@@ -79,7 +80,7 @@ describe('(a) isolamento entre tenants — bella_app nunca vê linha de outro te
 
 describe('(b) insert com tenant_id divergente do contexto é rejeitado', () => {
   it('INSERT em roles com tenant_id de outro tenant viola a policy (RLS), não a aplicação', async () => {
-    await expect(
+    await expectPgErrorMatching(
       withTenant(appDb.db, bellaTenantId, (tx) =>
         tx.insert(schema.roles).values({
           id: '99999999-9999-4999-8999-999999999999',
@@ -87,7 +88,8 @@ describe('(b) insert com tenant_id divergente do contexto é rejeitado', () => {
           name: 'papel-invasor',
         }),
       ),
-    ).rejects.toThrow(/row-level security/i);
+      /row-level security/i,
+    );
 
     // confirma que nada foi persistido (nem no tenant certo, nem no errado)
     const found = await withoutTenant(ownerDb.db, (tx) =>
