@@ -46,15 +46,15 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **A — Fundação**. Milestone concluído (localmente, aguardando merge): **M4 Web shell + login + design system** (2026-09-09). Em andamento: abrir PR/CI remota do M4. Próximo depois do merge: **M5 — Catálogo (início da Fase B)**.
-- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push, não só uma vez no início** — voltou sozinho para outra conta 3 vezes em M2/M3, ver ENV-6); Docker Desktop com falha (ENV-1, provavelmente resolve com reboot); workspace em OneDrive (ENV-5). CI é a frente de integração enquanto o Docker local não funciona — já provada confiável (pegou 6+ bugs reais entre M0–M3).
-- Branch: `claude/m4-web-shell` (ainda não mergeada). Base: `0ab8e1f` (main). `pnpm check`/`pnpm build` verdes localmente para o monorepo inteiro, incluindo `apps/web` pela primeira vez.
-- Último gate aprovado: G0–G3 (M0–M4), G5 (UX/mobile: fontes provadas via `document.fonts.check`, visual em duas larguras), G6 (isolamento por tenant + autenticação + permissão + dispositivo/PIN, positivo/negativo, 3 frentes — M1–M3). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
-- Bloqueios: nenhum. Pendência: abrir PR do M4, acompanhar CI remota, mergear.
+- Fase: **A — Fundação**. Milestones concluídos e mergeados: **M4 Web shell + login + design system** e **M4.1 Refinamento visual** (feedback direto do Victor sobre "cara de IA" — ver ADR-029), ambos 2026-09-09. Próximo: **M5 — Catálogo (início da Fase B)**.
+- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push, não só uma vez no início** — voltou sozinho para outra conta 4 vezes agora em M2/M3/M4.1, ver ENV-6); Docker Desktop com falha (ENV-1, provavelmente resolve com reboot); workspace em OneDrive (ENV-5). CI é a frente de integração enquanto o Docker local não funciona — já provada confiável (pegou 6+ bugs reais entre M0–M3).
+- Branch: `main`. Último commit: `4a8df72` (merge PR #5, M4.1). CI verde nos 3 jobs em ambos os PRs do dia (#4 M4, #5 M4.1).
+- Último gate aprovado: G0–G3 (M0–M4), G5 (UX/mobile: fontes provadas via `document.fonts.check`, visual em duas larguras, revisão de composição pós-feedback — M4.1), G6 (isolamento por tenant + autenticação + permissão + dispositivo/PIN, positivo/negativo, 3 frentes — M1–M3). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
+- Bloqueios: nenhum.
 
 ## Próximo passo exato
 
-Abrir o PR do M4 (`claude/m4-web-shell` → `main`), acompanhar CI, mergear se verde, reescrever `docs/ACTIVE_PLAN.md` para o M5 (catálogo).
+Reescrever `docs/ACTIVE_PLAN.md` para o M5 (catálogo, início da Fase B) e começar a execução.
 
 ## Arquitetura atual (resumo; detalhes em `docs/ARCHITECTURE.md`)
 
