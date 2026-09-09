@@ -27,7 +27,8 @@
     "check": "drizzle-kit check",
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "app-role": "tsx --env-file-if-exists=../../.env src/set-app-role-password.ts",
-    "seed": "tsx --env-file-if-exists=../../.env src/seed/index.ts"
+    "seed": "tsx --env-file-if-exists=../../.env src/seed/index.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@bella/domain": "workspace:*",
@@ -39,6 +40,7 @@
     "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.10",
     "tsx": "4.23.13",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
   }
 }
