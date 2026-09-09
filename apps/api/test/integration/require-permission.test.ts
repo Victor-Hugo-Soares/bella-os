@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { eq } from 'drizzle-orm';
 import { createDb, schema, withoutTenant, withTenant, type DbHandle } from '@bella/db';
 import { runMigrations } from '@bella/db/migrate';
 import { seed, SEED_TENANTS } from '@bella/db/seed';
@@ -76,8 +77,11 @@ beforeAll(async () => {
   bellaTenantId = tenantRows.find((r) => r.slug === bellaSpec.slug)!.id;
   demoTenantId = tenantRows.find((r) => r.slug === demoSpec.slug)!.id;
 
+  // `ownerDb` ignora RLS (é o dono do banco) — filtro de tenant_id explícito é
+  // obrigatório, senão `.find()` pode pegar o papel de outro tenant com o mesmo nome
+  // (achado real pela CI ao escrever devices.test.ts, ver ADR-027).
   const bellaRoles = await withTenant(ownerDb.db, bellaTenantId, (tx) =>
-    tx.select().from(schema.roles),
+    tx.select().from(schema.roles).where(eq(schema.roles.tenantId, bellaTenantId)),
   );
   const cashierRoleId = bellaRoles.find((r) => r.name === 'cashier')!.id;
 

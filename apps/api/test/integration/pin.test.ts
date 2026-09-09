@@ -40,7 +40,11 @@ beforeAll(async () => {
   );
   bellaTenantId = tenantRows.find((r) => r.slug === bellaSpec.slug)!.id;
 
-  const roles = await withTenant(ownerDb.db, bellaTenantId, (tx) => tx.select().from(schema.roles));
+  // `ownerDb` ignora RLS (é o dono do banco) — filtro de tenant_id explícito é
+  // obrigatório, senão `.find()` pode pegar o papel de outro tenant com o mesmo nome.
+  const roles = await withTenant(ownerDb.db, bellaTenantId, (tx) =>
+    tx.select().from(schema.roles).where(eq(schema.roles.tenantId, bellaTenantId)),
+  );
   const roleId = roles.find((r) => r.name === 'waiter')!.id;
   const userId = newId();
   await withoutTenant(ownerDb.db, (tx) =>
@@ -132,7 +136,7 @@ describe('setMembershipPin / verifyMembershipPin', () => {
 
   it('membership sem PIN configurado é negado (não tenta comparar com hash inexistente)', async () => {
     const roles = await withTenant(ownerDb.db, bellaTenantId, (tx) =>
-      tx.select().from(schema.roles),
+      tx.select().from(schema.roles).where(eq(schema.roles.tenantId, bellaTenantId)),
     );
     const roleId = roles.find((r) => r.name === 'kitchen')!.id;
     const userId = newId();

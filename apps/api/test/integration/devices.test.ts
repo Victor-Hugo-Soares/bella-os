@@ -80,9 +80,13 @@ beforeAll(async () => {
   });
   await app.ready();
 
-  // Dono do Bella (permissão devices.manage já vem no papel "owner" do seed)
+  // Dono do Bella (permissão devices.manage já vem no papel "owner" do seed).
+  // `ownerDb` é a conexão de DONO do banco: ela ignora RLS (ADR-004), então
+  // `withTenant` sozinho não filtra nada aqui — é preciso `WHERE tenant_id = ...`
+  // explícito, senão `.find()` pode pegar o papel de OUTRO tenant com o mesmo nome
+  // (achado de verdade pela CI: sem esse filtro, o "owner" do Demo virava o do Bella).
   const bellaRoles = await withTenant(ownerDb.db, bellaTenantId, (tx) =>
-    tx.select().from(schema.roles),
+    tx.select().from(schema.roles).where(eq(schema.roles.tenantId, bellaTenantId)),
   );
   const bellaOwnerRoleId = bellaRoles.find((r) => r.name === 'owner')!.id;
   const bellaSignUp = await app.inject({
@@ -106,7 +110,7 @@ beforeAll(async () => {
 
   // Dono do Demo — só para o teste de isolamento entre tenants.
   const demoRoles = await withTenant(ownerDb.db, demoTenantId, (tx) =>
-    tx.select().from(schema.roles),
+    tx.select().from(schema.roles).where(eq(schema.roles.tenantId, demoTenantId)),
   );
   const demoOwnerRoleId = demoRoles.find((r) => r.name === 'owner')!.id;
   const demoSignUp = await app.inject({
