@@ -2,48 +2,48 @@
 
 > Fotografia atual. Atualizar ao fim de cada milestone e antes de compactar contexto. Histórico vai para `memory/archive/`.
 
-**Atualizado em:** 2026-09-09 (M3 concluído e mergeado, sessão Sonnet 5)
-**Fase:** A — Fundação · **Milestone concluído:** M3 Dispositivos, PIN, observabilidade · **Próximo:** M4 Web shell + login + design system (`ACTIVE_PLAN.md`)
-**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commit:** `a751062` (merge do PR #3, M3)
-**CI:** verde nos 3 jobs: quality, integração Postgres (**45/45 testes** em 7 arquivos), build+smoke.
+**Atualizado em:** 2026-09-09 (M4 concluído, aguardando abertura/merge do PR, sessão Sonnet 5)
+**Fase:** A — Fundação · **Milestone concluído:** M4 Web shell + login + design system · **Próximo:** M5 Catálogo (início da Fase B, `ACTIVE_PLAN.md`)
+**Branch:** `claude/m4-web-shell` (ainda não mergeada) · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Base:** `0ab8e1f` (main)
+**CI local:** `pnpm check` e `pnpm build` verdes no monorepo inteiro (7 packages/apps, incluindo `apps/web` pela primeira vez). CI remota (GitHub Actions) a confirmar no PR.
 
 ## 1. Estado funcional do produto
-Além do login de staff (M2), agora existe:
-- **Pareamento de dispositivo**: um gerente gera um código de 6 dígitos; o tablet da cozinha ou o computador do caixa troca esse código por uma credencial de longa duração, sem precisar de login de staff.
-- **PIN de operador**: com um dispositivo já autenticado, qualquer funcionário confirma sua identidade com um PIN curto para ações sensíveis — com bloqueio automático depois de tentativas erradas repetidas, provado de verdade (a 5ª tentativa bloqueia, o bloqueio expira).
-- **`/ready` agora informa a latência do banco**, primeiro passo de observabilidade real.
+Pela primeira vez existe uma tela real: `/admin/login`. Um funcionário abre a URL, digita email/senha, e a chamada vai de verdade para a API (M2) em outro processo/porta — provando CORS e cookie de sessão entre origens diferentes, não só "parece que funciona". Cardápio do cliente e KDS existem só como placeholders de rota (conteúdo real é Fase B/C).
 
 ## 2. Estado por módulo
 | Módulo | Estado | Observação |
 |--------|--------|------------|
-| identity (login, sessão, permissão, dispositivo, PIN) | **funcional (M1–M3)** | UI é M4 |
+| identity (login, sessão, permissão, dispositivo, PIN) | **funcional (M1–M3)** | UI de login consumindo agora (M4) |
 | `@bella/domain` | dinheiro, IDs, permissões, PIN, token de dispositivo | tudo testado e pesquisado antes de codar |
 | `@bella/db` | schema com identidade + auth + devices | catálogo/mesas/pedidos entram em M5+ |
-| `apps/web` | não existe | M4 |
+| `apps/web` | **shell criado (M4)**: 3 superfícies por rota, design system aplicado, login funcional | cardápio/KDS/admin reais são Fase B/C |
 | catalog / tables | não iniciado | M5–M7 |
 | ordering / kitchen | não iniciado | M8–M11 |
 | ledger / payments / cash | não iniciado | M12–M15 |
 
 ## 3. Ambiente conhecido
-Sem mudança de fundo desde o M1 (Docker local com falha, ENV-1; workspace em OneDrive, ENV-5). **ENV-6** (novo): a conta ativa do GitHub CLI voltou sozinha para `victorlins-dev` três vezes ao longo das sessões M2/M3 do mesmo dia — sempre pega antes de um push real (nunca vazou), mas exige checagem em toda sessão, não só no início.
+Sem mudança de fundo desde o M1 (Docker local com falha, ENV-1; workspace em OneDrive, ENV-5). **ENV-6**: checar `gh auth status` imediatamente antes de cada push continua necessário. Ainda sem Postgres local acessível — bloqueia testar um login **bem-sucedido** de ponta a ponta com dado real (ver §4).
 
-## 4. Evidências do M3 (resumo; detalhes em `QA_LEDGER.md`)
-- `pnpm check` verde localmente; `drizzle-kit check` limpo.
-- **Duas regressões de build reais** encontradas e corrigidas ao adicionar `@node-rs/argon2` (hash de PIN): esbuild tentando resolver binários nativos de todas as plataformas (corrigido com `external` no tsup) e o bundle não resolvendo o pacote em runtime por isolamento do pnpm (corrigido declarando a dependência também em `apps/api`) — ver ADR-026.
-- **Um bug real de produção** encontrado pela CI: `verifyMembershipPin` lançava erro de dentro da própria transação que gravava a tentativa de PIN incorreta, e o Postgres desfazia (ROLLBACK) esse registro — o bloqueio por tentativas nunca funcionava de fato. Corrigido separando "decidir e persistir" (dentro da transação, sempre commit) de "lançar erro para o chamador" (fora, depois do commit) — ver ADR-026 e QA_LEDGER.
-- **Um bug real de setup de teste** (não de produção): consultas via conexão de dono sem filtro explícito de tenant pegavam o papel do tenant errado, já que o dono ignora RLS — ver ADR-027.
-- **CI final: 45/45 testes de integração verdes** em 7 arquivos (5 do M1+M2 + `devices.test.ts` e `pin.test.ts` do M3).
+## 4. Evidências do M4 (resumo; detalhes em `QA_LEDGER.md`, decisões em `DECISIONS.md` ADR-028)
+- `pnpm check` e `pnpm build` verdes para o monorepo inteiro, incluindo `apps/web` pela primeira vez; CI (`ci.yml`) já cobre isso sem nenhuma mudança de workflow (scripts da raiz são recursivos por design desde o M0).
+- Fontes do design system provadas de verdade num browser real (`document.fonts.check`) nas três famílias/duas origens (Google Fonts, Fontshare).
+- CORS + cookie de sessão entre dois processos reais (web:3200, api:3001) provados via inspeção de rede real, não só "a tela carregou".
+- **Um bug real de UX encontrado e corrigido:** `authFetch()` só reconhecia o formato de erro plano do Better Auth, perdendo a mensagem específica quando a resposta vinha no nosso envelope aninhado (`{ error: { message } }}`) — caso comum quando uma requisição de auth nem chega ao Better Auth. Corrigido para checar as duas formas.
+- **Um achado de processo real (não bug de código):** um `next start` já em execução não pega um rebuild em disco — testar contra um servidor "esquecido" rodando fez parecer que uma correção não tinha efeito. Lição registrada em ADR-028 para toda sessão futura de smoke manual.
+- **Duas regressões de monorepo reais** encontradas e corrigidas: `pnpm-workspace.yaml` duplicado gerado pelo `create-next-app` (conflitava com o da raiz) e `next typegen` faltando no script `typecheck` de `apps/web` (tipos de rota do App Router não apareciam para um `tsc --noEmit` isolado).
+- **Limitação real registrada, não escondida:** sem Postgres local, não foi possível testar um login bem-sucedido → dashboard com dado real. Cobertos: CORS/cookie, fontes, visual em duas larguras, estados de erro/loading, extração de mensagem de erro nos dois formatos possíveis.
+- **Playwright adiado** (decisão registrada, não esquecimento): só uma tela real existe e não há dado de teste local para popular um fluxo de sucesso automatizado; reavaliar no M5/M6.
 
 ## 5. Decisões que não podem ser esquecidas
-**ADR-025** (`devices`/`pairing_codes` sem RLS, de propósito — bootstrap de autenticação de dispositivo não tem tenant conhecido ainda; isolamento garantido na aplicação). **ADR-026** (`@node-rs/argon2` para PIN; duas regressões de build reais; bug de transação real no bloqueio de PIN). **ADR-027** (consultas de teste via conexão de dono precisam filtrar `tenant_id` explicitamente — `withTenant` sozinho não filtra quando a conexão ignora RLS).
+**ADR-025** (`devices`/`pairing_codes` sem RLS, de propósito). **ADR-026** (`@node-rs/argon2`; duas regressões de build reais; bug de transação real no PIN). **ADR-027** (consultas de teste via dono precisam filtrar `tenant_id` explicitamente). **ADR-028** (M4: `next typegen` no typecheck; fontes em duas origens; `authFetch` precisa reconhecer dois formatos de erro; `next start` não pega rebuild em disco sozinho — sempre reiniciar depois de rebuildar).
 
 ## 6. Perguntas abertas para o Victor
 Sem mudança — ver `PRODUCT_CONTEXT.md §2`.
 
 ## 7. Dependendo do Victor / pendências operacionais
-- Reiniciar a máquina para tentar destravar o Docker Desktop (não bloqueante).
+- Reiniciar a máquina para tentar destravar o Docker Desktop (não bloqueante, mas destravaria testar login bem-sucedido de ponta a ponta localmente).
 - Decidir se torna o repositório privado (ainda pendente desde o bootstrap).
-- ENV-6: se o Victor rodar outra sessão de Claude Code concorrente na mesma máquina noutro projeto GitHub, isso provavelmente explica a troca de conta — vale perguntar a ele.
+- Abrir/acompanhar o PR do M4 (`claude/m4-web-shell` → `main`) assim que a CI remota confirmar verde.
 
 ## 8. Próximo passo exato
-Executar o **M4** conforme `docs/ACTIVE_PLAN.md`: criar `apps/web` (Next.js), shell com as três superfícies por rota, tela de login usando o M2, aplicando `docs/FRONTEND_GUIDELINES.md`. Antes de codar, confirmar a versão atual do Next.js/App Router (regra 12).
+Abrir o PR do M4, acompanhar CI remota, mergear se verde, e então reescrever `ACTIVE_PLAN.md` para o M5 (catálogo, início da Fase B), conforme `docs/ROADMAP.md`.
