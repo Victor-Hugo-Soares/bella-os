@@ -14,10 +14,13 @@ import { tenantIsolationPolicy } from './_rls';
 import { tenants } from './platform';
 
 /**
- * Identidade (DOMAIN_MODEL.md §1.2). `users` é global e propositalmente mínimo neste
- * milestone — o M2 confere a documentação/API atual do Better Auth antes de estender
- * estas colunas (ADR-005; ver KNOWN_ISSUES R-2), para não migrar duas vezes. `users` não
- * tem RLS por tenant (é global); todas as demais tabelas deste arquivo têm.
+ * Identidade (DOMAIN_MODEL.md §1.2). `users` é global (sem RLS por tenant); todas as
+ * demais tabelas deste arquivo têm. `email_verified` e `image` são campos que o Better
+ * Auth (M2, ADR-023) espera encontrar — nomes/tipos confirmados rodando a própria CLI
+ * (`auth generate`) contra este schema, não adivinhados. A senha do login local mora em
+ * `accounts.password` (schema/auth.ts), não aqui — é assim que o Better Auth modela
+ * "conta" (uma linha por método de login); o `password_hash` do M1 nunca chegou a ser
+ * usado por código nenhum e foi removido para não haver dois lugares para a senha.
  */
 export const users = pgTable(
   'users',
@@ -25,7 +28,8 @@ export const users = pgTable(
     id: idColumn(),
     email: text('email').notNull(),
     name: text('name').notNull(),
-    passwordHash: text('password_hash'),
+    emailVerified: boolean('email_verified').notNull().default(false),
+    image: text('image'),
     status: text('status').notNull().default('active'),
     ...timestamps,
   },

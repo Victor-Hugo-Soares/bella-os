@@ -24,7 +24,7 @@ Estado: todas com default configurável. Perguntar ao Victor **em lote** quando 
 | ID | Risco | Prob. | Impacto | Mitigação |
 |----|-------|-------|---------|-----------|
 | R-1 | Internet do restaurante cai → KDS e caixa param (cloud-first, ADR-011) | média | alto | failover 4G recomendado; cliente usa 4G próprio; sem mutação offline; exportação de comandas abertas; agente de impressão na Fase E |
-| R-2 | Better Auth: API/versão pode ter mudado em relação ao conhecimento do modelo | média | médio | Sonnet confere docs oficiais + tipos instalados antes de M2; adapter isolado; plano B Lucia/Oslo |
+| R-2 | ~~Better Auth: API/versão pode ter mudado~~ — **mitigado no M2**: integração feita conferindo docs oficiais + rodando a própria CLI (`auth generate`) contra o schema real, não de memória. Achado real: `@better-auth/cli` está deprecado, o pacote certo é `auth`; sem plugin oficial para Fastify (rota catch-all manual, ADR-023) | — | — | resolvido; ver ADR-023 |
 | R-3 | ~~RLS mal configurada dá falsa sensação de segurança~~ — **mitigado no M1**: `tenant-isolation.test.ts` prova via SQL direto que `bella_app` (não owner, sem BYPASSRLS) nunca vê linha de outro tenant, insert com `tenant_id` divergente é rejeitado pela policy, e sem contexto nenhuma linha aparece. Continua válido revalidar a cada tabela de negócio nova (usar `tenantIsolationPolicy()` + `.enableRLS()`, ADR-021) | — | — | resolvido; regressão coberta por CI |
 | R-4 | Idempotência incompleta (chave só no front) | baixa | alto | chave persistida no carrinho; teste de duplo envio e retry no CI; UNIQUE no banco |
 | R-5 | Estimativa de espera vira promessa e gera reclamação | alta | médio | sempre faixa + rótulo; sem ETA até haver tempos base cadastrados |
@@ -37,6 +37,7 @@ Estado: todas com default configurável. Perguntar ao Victor **em lote** quando 
 | R-12 | Cancelamento após produção sem política de estoque/CMV definida | média | médio | `charge_on_cancel` + motivo desde M11; estoque na Fase E consome esse registro |
 | R-13 | `ALTER ROLE ... PASSWORD $1` não é aceito pelo parser de DDL do Postgres (posição sintática exige literal, não bind parameter) | — | — | **resolvido no M1** via `pg.escapeLiteral` + teste de regressão (`set-app-role-password.test.ts`); lição registrada em ADR-022 para qualquer DDL dinâmico futuro |
 | R-14 | `DrizzleQueryError` envolve a mensagem real do Postgres em `.cause`; `.message` de topo é só "Failed query: ..." | baixa | baixo | ao testar/mapear erros de banco, sempre inspecionar `.cause`, não `.message` (helper `expectPgErrorMatching` em `apps/api/test/integration/_pg-error.ts`); relevante para o mapeamento de erros da API em módulos futuros (M8+) |
+| R-15 | ~~`apps/api/src/index.ts` conectava como o DONO do banco em produção~~ (ignoraria RLS, anulando o isolamento do M1) — **resolvido no M2**: `index.ts` usa `APP_DATABASE_URL` (`bella_app`); cai para `DATABASE_URL` só com aviso alto no log. Achado escrevendo os próprios testes de integração do M2, não em produção | — | — | resolvido; ver ADR-024. Checar em toda revisão futura de `index.ts` que a conexão de runtime nunca volte a ser o dono |
 
 ## Dívidas conscientes assumidas no bootstrap
 - `apps/web` ainda não existe (criado em M4 pelo Sonnet com `create-next-app` pinado na versão vigente).
