@@ -11,15 +11,27 @@
     "./migrate": {
       "types": "./src/migrate.ts",
       "default": "./src/migrate.ts"
+    },
+    "./seed": {
+      "types": "./src/seed/index.ts",
+      "default": "./src/seed/index.ts"
+    },
+    "./set-app-role-password": {
+      "types": "./src/set-app-role-password.ts",
+      "default": "./src/set-app-role-password.ts"
     }
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "generate": "drizzle-kit generate",
     "check": "drizzle-kit check",
-    "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts"
+    "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
+    "app-role": "tsx --env-file-if-exists=../../.env src/set-app-role-password.ts",
+    "seed": "tsx --env-file-if-exists=../../.env src/seed/index.ts",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@bella/domain": "workspace:*",
     "drizzle-orm": "0.45.2",
     "pg": "8.23.0"
   },
@@ -28,6 +40,7 @@
     "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.10",
     "tsx": "4.23.13",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
   }
 }

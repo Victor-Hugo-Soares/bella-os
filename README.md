@@ -9,7 +9,7 @@ Sistema operacional de restaurante: cliente pede pelo QR na mesa, produção rec
 
 ```bash
 pnpm install
-pnpm db:up && pnpm db:migrate
+pnpm db:up && pnpm db:migrate && pnpm db:app-role && pnpm db:seed
 pnpm dev            # API em http://localhost:3001/health
 pnpm check          # lint + format + typecheck + unit
 pnpm test:integration

@@ -43,6 +43,10 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://bella:bella@localhost:5432/bella_test
       DATABASE_URL: postgres://bella:bella@localhost:5432/bella_test
+      # bella_app é criado sem login pela migration (ADR-004); a CI só configura a senha
+      # de um papel que já existe no banco, nunca cria segredo de produção.
+      APP_DB_PASSWORD: ci_only_app_role_password
+      TEST_APP_DATABASE_URL: postgres://bella_app:ci_only_app_role_password@localhost:5432/bella_test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -51,6 +55,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      - run: pnpm db:app-role
       - run: pnpm test:integration
 
   build:
