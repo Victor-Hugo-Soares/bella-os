@@ -6,6 +6,8 @@ import type { DbHandle } from '@bella/db';
 import type { AppConfig } from './config';
 import { registerErrorHandler } from './plugins/error-handler';
 import { healthRoutes } from './modules/health/routes';
+import { createAuth } from './modules/identity/auth';
+import { identityRoutes } from './modules/identity/routes';
 
 // Versão lida do package.json em tempo de build/execução (tsup embute o JSON).
 import packageJson from '../package.json' with { type: 'json' };
@@ -49,8 +51,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   await app.register(sensible);
   await app.register(cors, {
-    // CORS restrito por ambiente (WEB_ORIGIN) entra no M4; por ora nenhuma origem cruzada.
-    origin: false,
+    // Sem apps/web ainda (M4): CORS só libera a origem configurada, se houver.
+    origin: config.WEB_ORIGIN ?? false,
+    credentials: true,
   });
 
   app.addHook('onSend', async (request, reply) => {
@@ -64,6 +67,17 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     db: options.db ?? null,
     startedAt: Date.now(),
   });
+
+  const db = options.db ?? null;
+  if (db) {
+    const auth = createAuth({
+      db: db.db,
+      secret: config.BETTER_AUTH_SECRET,
+      webOrigin: config.WEB_ORIGIN,
+      baseURL: config.BETTER_AUTH_URL,
+    });
+    await app.register(identityRoutes, { auth });
+  }
 
   return app;
 }

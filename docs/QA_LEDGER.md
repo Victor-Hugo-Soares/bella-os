@@ -86,3 +86,25 @@ Ver testes (a)–(d) acima. Evidência de 3+ frentes para mudança crítica de t
 
 ### 2026-09-09 — M1 — Gate Git — PASS
 PR #1 (`claude/m1-banco-tenant` → `main`), 3 commits (feature + 2 correções encontradas pela própria CI), diff revisado, sem segredos (`.env.example` só tem senha de desenvolvimento local documentada como tal), CI verde nos 3 jobs antes do merge. Merge commit `ba348bd`.
+
+---
+
+## Milestone M2 — Auth staff, papéis, permissões (Fase A)
+
+### 2026-09-09 — M2 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M2) já continha a pesquisa da versão/API do Better Auth feita na sessão anterior; reconfirmada contra os tipos instalados e a própria CLI antes de escrever qualquer rota (regra 12 do CLAUDE.md). Gate de Plano respondido antes de codar.
+
+### 2026-09-09 — M2 — G2/G3 Dados, contratos e feature — PASS
+Frentes:
+- [inspeção de tipos instalados] `drizzleAdapter` (`usePlural`, `schema`), `pgRole`/`pgPolicy` (já usados no M1), `advanced.database.generateId` — todos confirmados lendo `.d.mts` reais, não de memória.
+- [execução real da CLI] `pnpm exec auth generate` rodado contra `apps/api/src/modules/identity/auth.ts` duas vezes (uma vez sem `usePlural`, confirmando singular; outra com, confirmando plural) — schema de `sessions`/`accounts`/`verifications` e colunas novas de `users` vieram da ferramenta, não de suposição.
+- [migração] duas migrations separadas (`0001` adição pura de `sessions`/`accounts`/`verifications`/`users.email_verified`/`users.image`; `0002` remoção pura de `users.password_hash`) para evitar o prompt interativo de "rename?" do drizzle-kit ao misturar adição e remoção — `drizzle-kit check` limpo depois de ambas.
+- [unit] typecheck de todo o monorepo limpo após renomear chaves de `_columns.ts` para camelCase; confirmado que a mudança não gera diff de migration (colunas rastreadas pelo nome SQL).
+- [smoke real] `pnpm build` gerou bundle de 41,5 KB (contra 188 KB do M0 quando `pg` foi acidentalmente embutido) — confirma que `better-auth`/`@better-auth/drizzle-adapter` ficaram como `external`, não embutidos; servidor compilado iniciou sem erro com `DATABASE_URL` ausente e com uma `DATABASE_URL` inalcançável, `/health` e `/ready` responderam corretamente, `/v1/me` sem sessão devolveu 401 estruturado, `/api/auth/sign-up/email` respondeu (não 404 — rota wired).
+- [integração — CI, Postgres 16 real, conectando como `bella_app`] `auth.test.ts` (6 testes): sign-up cria sessão; sign-in correto funciona e `/v1/me` devolve o usuário certo; senha errada e usuário inexistente são rejeitados (400s, não 500); `/v1/me` sem sessão é 401; sign-out invalida a sessão; usuário aparece para o dono do banco via consulta independente.
+- [integração — CI] `require-permission.test.ts` (6 testes, critério 3 do plano): sem sessão → UNAUTHENTICATED; sessão sem `X-Tenant-Id` → TENANT_MISMATCH; sessão + tenant sem membership → TENANT_MISMATCH (mesma resposta de "não existe" e "desativado", não vaza); positivo (`cashier` consegue `payments.record`); dois negativos (`cashier` não consegue `users.manage` nem `orders.cancel.after_production`).
+
+**Achado real corrigido durante o processo (não hipotético):** a API (`index.ts`) ainda conectava como o DONO do banco (herdado do M0/M1, quando não havia módulo de negócio nenhum) — ignoraria RLS em produção, anulando o isolamento do M1. Descoberto ao escrever os testes de integração do M2 (perguntando "com qual conexão a API real deveria rodar?"). Corrigido: `index.ts` agora usa `APP_DATABASE_URL` (`bella_app`), com aviso alto se cair para `DATABASE_URL`. Ver ADR-024.
+
+### 2026-09-09 — M2 — G6 Segurança (autenticação/autorização/tenant) — PASS
+Evidência de 3+ frentes para mudança crítica (autenticação + permissão + tenant): testes de integração via HTTP real (transporte), `resolveActor`/`requirePermission` contra banco real conectado como `bella_app` (não o dono — a mesma lição do M1 aplicada de novo), inspeção do bundle de produção (nada embutido incorretamente). Positivo e negativo cobertos para dois papéis (`cashier` vs. permissões de `owner`/gerência).
