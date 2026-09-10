@@ -627,5 +627,23 @@ PR #28 (`claude/m21-design-system-foundation` → `main`), CI remota verde nos 4
 ### 2026-09-11 — M22 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
 Todos verdes no monorepo inteiro. Nenhuma chamada de API nova — só composição/visual sobre o que já existia desde M7/M8/M10.
 
-### 2026-09-11 — M22 — Gate Git — PENDENTE
-Branch pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.
+### 2026-09-11 — M22 — Gate Git — PASS
+PR #29 (`claude/m22-customer-reskin` → `main`), CI remota verde nos 4 jobs de primeira, merge commit `6da6ed2`.
+
+---
+
+## M23 — KDS (re-skin pro tema escuro quente)
+
+### 2026-09-11 — M23 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` respondeu o Gate de Plano: `.kds-theme` reaplicado na página inteira (pareamento + board), não só no board; corrigir o token `--card-warm` do `.kds-theme` antes de usá-lo; zero mudança de lógica de negócio/realtime — reskin puro sobre o que o M20 já construiu.
+
+### 2026-09-11 — M23 — G5 UX (visual + regressão) — PASS
+- **Achado real durante a própria preparação dos tokens (antes de tocar na tela)**: revisando a extração de cores do mockup feita mais cedo na sessão, `--card-warm` do `.kds-theme` estava herdado de `var(--surface)` desde o M21 — mesma cor escura do card do ticket. O mockup usa um bege claro (`rgb(250,246,241)`/`rgb(48,41,35)`) nos botões "Iniciar preparo"/"Marcar pronto" mesmo no tema escuro, de propósito (é o destaque da tela). Corrigido em `globals.css`: `.kds-theme` ganhou `--card-warm: #faf6f1` e um `--card-warm-foreground: #302923` novo (par exigido porque o `--foreground` do tema escuro é quase branco, ilegível sobre o bege claro); tema claro ganhou o par simétrico `--card-warm-foreground: var(--foreground)`.
+- `apps/web/src/app/(kds)/kds/page.tsx`: classe `.kds-theme` aplicada na raiz de TODOS os retornos (pareamento, erro, carregando, vazio, board) — antes o KDS usava os tokens genéricos claros. Botões "Iniciar preparo"/"Marcar pronto" trocaram de `bg-brand`/`bg-success` pra `bg-card-warm text-card-warm-foreground`; raio dos cards/botões foi de `rounded-md` pra `rounded-lg` (13px, design system novo); badge da tela de pareamento reaproveita o padrão de badge de marca do cliente (ícone sobre `bg-card-warm`).
+- **[visual, browser real, `getComputedStyle`]** Servidor fake local (`/v1/kds/tickets`, `/v1/devices/exchange`, `/v1/stream`, sem Postgres — ENV-1) com 3 tickets (novo/em preparo/pronto, um item cancelado). Confirmado via DOM real, não só lido no código: fundo do board `rgb(32,32,32)` (`#202020`); botões de ação `bg rgb(250,246,241)` / `color rgb(48,41,35)` — exatamente o valor extraído do mockup, prova de que a correção do token funcionou; item cancelado com `--danger` do tema escuro (`rgb(224,90,74)`) sobre fundo suave; badge de pareamento com o mesmo par bege/escuro. 375px sem overflow horizontal (`scrollWidth === clientWidth`). Estado vazio ("Nenhum ticket na fila") testado isoladamente (fixture zerada) — fundo/texto corretamente escuro-quente.
+- **Regressão**: clique real em "Iniciar preparo" contra a fixture fake mudou o ticket de "Novo" pra "Em preparo" na tela (mesmo padrão de golden path do M20/M22).
+
+### 2026-09-11 — M23 — `pnpm lint`/`typecheck`/`build` — PASS
+Rodados na raiz do monorepo (mesmo comando que a CI usa — `pnpm lint` = `eslint .`), verdes. **Nota**: `pnpm --filter @bella/web lint` isoladamente falha por uma regra (`react-hooks/set-state-in-effect`) que só existe no `eslint.config.mjs` local de `apps/web` (via `eslint-config-next`), não no `eslint.config.js` da raiz que a CI de fato roda — confirmado com `git stash` que a falha já existia em `main` antes desta sessão, não é uma regressão introduzida aqui. Divergência de config pré-existente, fora do escopo do M23; não bloqueia porque a CI usa o comando da raiz.
+
+### 2026-09-11 — M23 — Gate Git — PENDENTE

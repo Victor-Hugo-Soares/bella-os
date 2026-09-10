@@ -18,6 +18,7 @@
   --elevated: #ffffff;
   --card: var(--surface);
   --card-warm: #faf7f3;
+  --card-warm-foreground: var(--foreground);
   --muted-foreground: #686868;
   --brand: #bd3027;
   --brand-hover: #a52620;
@@ -48,7 +49,10 @@
   --surface: #2d2a28;
   --elevated: #322f2c;
   --card: var(--surface);
-  --card-warm: var(--surface);
+  /* Botões de ação (Iniciar preparo/Marcar pronto) usam um bege claro de propósito,
+     mesmo no tema escuro — é o destaque do mockup, não um erro de tema herdado. */
+  --card-warm: #faf6f1;
+  --card-warm-foreground: #302923;
   --muted-foreground: #b8b0a8;
   --border: rgb(255 250 244 / 0.08);
   --border-strong: rgb(255 250 244 / 0.14);
@@ -68,6 +72,7 @@
   --color-elevated: var(--elevated);
   --color-card: var(--card);
   --color-card-warm: var(--card-warm);
+  --color-card-warm-foreground: var(--card-warm-foreground);
   --color-muted-foreground: var(--muted-foreground);
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
