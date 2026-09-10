@@ -26,9 +26,39 @@ export class ApiError extends Error {
   }
 }
 
+const GET_RETRY_ATTEMPTS = 2;
+const GET_RETRY_BASE_DELAY_MS = 300;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Retry com backoff SÓ para falha de rede (o `fetch` lançou — sem resposta nenhuma do
+ * servidor), nunca para uma resposta HTTP de erro (4xx/5xx são respostas legítimas do
+ * servidor, não "a rede caiu"), e SÓ para `GET` (idempotente por natureza — `POST`/
+ * `PATCH` já têm seu próprio mecanismo de segurança, `Idempotency-Key`, decidir retry
+ * automático neles é uma escolha maior, fora do escopo de resiliência de rede do M20).
+ */
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  const method = (init.method ?? 'GET').toUpperCase();
+  const attempts = method === 'GET' ? GET_RETRY_ATTEMPTS : 0;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= attempts; attempt++) {
+    try {
+      return await fetch(url, init);
+    } catch (err) {
+      lastErr = err;
+      if (attempt === attempts) break;
+      await sleep(GET_RETRY_BASE_DELAY_MS * 2 ** attempt);
+    }
+  }
+  throw lastErr;
+}
+
 /** Rotas próprias da API (`/v1/*`), que usam nosso envelope de erro padronizado. */
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetchWithRetry(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: 'include',
     headers: { 'content-type': 'application/json', ...init.headers },

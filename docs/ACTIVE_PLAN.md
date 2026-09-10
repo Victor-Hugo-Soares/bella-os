@@ -2,36 +2,44 @@
 
 > Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.6/§4 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M16 (relatório do dia operacional) está mergeado em `main` (commit `5342e84`, PR #25, CI verde na segunda rodada — 1 regressão de teste pega pela própria CI). Victor confirmou a ordem da Fase E: relatório do dia → **backup/restore** → resiliência de conexão.
+> M18 (backup/restore testado) está mergeado em `main` (commit `1cf638e`, PR #26, CI verde nos 4 jobs de primeira). Último item da ordem que o Victor escolheu para a Fase E: resiliência de conexão.
 
-## Milestone atual: **M18 — Backup/restore testado + runbook de incidentes** (Fase E)
+## Milestone atual: **M20 — Degradação/reconexão endurecida** (Fase E)
 
-### Problema
-Hoje não existe nenhuma forma testada de recuperar o banco de um desastre — nem script de backup/restore no repositório, nem prova de que um dump realmente volta a funcionar, nem runbook para quando algo der errado. Railway (hosting alvo, `ARCHITECTURE.md`) tem backup automático nos planos pagos, mas isso não é testado por nós nem serve como fallback local/portável.
+### Investigação prévia (evitar redesenhar o que já existe)
+Antes de planejar, um agente auditou o que já existe (não só o que `ARCHITECTURE.md` promete):
+- **Servidor (`apps/api/src/modules/realtime/`)**: SSE real, autenticado por dispositivo, `Last-Event-ID` com replay via `seq` bigserial do outbox `domain_events` — **já funciona**, mas nunca foi testado o ciclo desconectar→reconectar de verdade (só o caso feliz "conecta e recebe evento"). Um único canal `orders` existe — `station:{id}`/`table-session:{id}`/`admin` são só documentados, nunca implementados.
+- **Cliente KDS (`apps/web/.../kds/page.tsx`)**: `EventSource` + polling de segurança de 5s já existem. **Não existe**: banner "sem conexão", detecção de heartbeat silencioso (o servidor manda heartbeat como comentário SSE, que o `EventSource` do browser NUNCA expõe como evento — é invisível para JS, então hoje não dá pra saber que o heartbeat está chegando).
+- **`apiFetch`/`authFetch`**: nenhum retry — falha de rede vira erro na tela direto.
+- `ARCHITECTURE.md` promete "banner após 30s sem heartbeat" e canais múltiplos que não existem — divergência documentada, corrigida junto.
 
 ### Resultado esperado
-1. **`packages/db/scripts/backup.sh`** e **`restore.sh`**: `pg_dump --format=custom` / `pg_restore --clean --if-exists`, usando `DATABASE_URL`. `pnpm db:backup` / `pnpm db:restore <arquivo>`.
-2. **Prova real na CI** (não só "os comandos rodaram sem erro"): job novo que semeia dados, faz backup, cria um banco novo vazio, restaura o dump nele, e compara contagens de linhas entre o banco original e o restaurado — se não bater, o job falha.
-3. **`docs/RUNBOOK_INCIDENTS.md`** (novo, separado do `RUNBOOK_DEV.md` que é de setup): passo a passo para API fora do ar, Postgres inacessível, restaurar de um backup, e confirmar que a restauração deu certo.
+1. **Heartbeat visível ao cliente**: trocar o comentário SSE (`: heartbeat`) por um evento nomeado (`event: heartbeat`) — só assim o `EventSource` do browser consegue detectar que o servidor está vivo.
+2. **Banner "sem conexão" no KDS**: watchdog de 30s (mesmo número já documentado) resetado a cada evento recebido (heartbeat ou de negócio) + reação imediata ao `onerror` do `EventSource`; some sozinho no `onopen`/próximo evento.
+3. **Teste real de desconexão→reconexão**: conectar, receber evento A, fechar a conexão de propósito, reconectar com `Last-Event-ID`, gerar evento B, confirmar que só B chega (não replay duplicado de A).
+4. **Retry com backoff em `apiFetch` só para `GET`**: falha de rede (não erro HTTP) tenta de novo 2x com backoff curto. Nunca em `POST`/`PATCH` — essas mutações já têm seu próprio mecanismo de segurança (`Idempotency-Key`) e decidir retry automático nelas é uma escolha maior, fora do escopo de "endurecer reconexão".
+5. **Correção de `ARCHITECTURE.md`**: descrever o canal único `orders` que existe de verdade; marcar canais por `station`/`table-session`/`admin` como desenho futuro, não implementado.
 
 ### Riscos
-- **Comando de dump ou restore "funciona" mas silenciosamente perde dados** (ex.: `--data-only` sem estrutura, ou schema incompatível) — por isso a prova por contagem de linhas na CI é obrigatória, não é feature opcional.
-- **Versão do `pg_dump`/`pg_restore` do runner da CI divergindo da versão 16 do Postgres do serviço** — pode gerar avisos ou incompatibilidade sutil. Instalar explicitamente `postgresql-client-16` no job em vez de confiar no que já vem no runner.
-- **Backup local nunca é o único plano** — o runbook deve deixar claro que o backup automático do Railway (se habilitado) é a primeira linha de defesa em produção; o script daqui é o fallback portátil e o que prova que um dump volta a funcionar de verdade.
+- **Retry em `GET` pode mascarar um problema real** se usado sem limite — por isso só 2 tentativas com backoff curto (não um loop infinito), e só para falha de rede (exceção do `fetch`), nunca para resposta HTTP de erro (4xx/5xx são respostas legítimas do servidor, não "a rede caiu").
+- **Testar reconexão de verdade exige fechar a conexão HTTP de dentro do teste** (não só parar de ler) — usar `AbortController` no cliente de teste, não confiar em timeout.
 
-### Testes (2 frentes — normal: não é mutação de dinheiro em produção, é infraestrutura)
-1. CI: dump → banco novo → restore → contagem de linhas bate entre original e restaurado (tenants, orders, ledger_entries, pelo menos).
-2. Inspeção: `docs/RUNBOOK_INCIDENTS.md` revisado contra o próprio script (os comandos do runbook têm que ser exatamente os que a CI já provou que funcionam).
+### Testes (2 frentes — normal: hardening de infraestrutura, não mutação de dinheiro)
+1. Integração: ciclo desconectar→reconectar com `Last-Event-ID` real, evento perdido nunca duplicado nem perdido.
+2. Visual/browser: banner aparece quando a conexão SSE é interrompida (simulado) e some ao reconectar — testado num navegador real, não só lido no código (`FRONTEND_GUIDELINES.md §7`).
 
-### Gate de Plano (respondido no início da execução do M18)
-1. **Formato `custom` do `pg_dump`** (`-Fc`), não SQL plano — permite `pg_restore --clean --if-exists` (restauração limpa em cima de um banco já existente, útil para o próprio teste de CI) e é mais compacto. `--no-owner --no-privileges` para o dump não depender de quem é dono das tabelas no banco de origem (relevante porque a app roda como `bella_app`, não como dono, ADR-020).
-2. **Prova de verdade na CI, não só "rodou sem erro"**: o job novo cria um SEGUNDO banco (`bella_test_restore`) no mesmo serviço Postgres, restaura o dump nele, e compara `count(*)` de `tenants`, `orders`, `order_items` e `ledger_entries` entre origem e destino — só passa se os números baterem exatamente.
-3. **`postgresql-client-16` instalado explicitamente no job** (`apt-get install`) — nunca confiar no que o runner já tem por padrão, evita mismatch de versão do `pg_dump` cliente vs. servidor.
-4. **Scripts em bash simples** (`packages/db/scripts/backup.sh`/`restore.sh`), não TypeScript — são wrappers finos sobre `pg_dump`/`pg_restore`, chamar um binário externo de dentro de um script Node só adicionaria uma camada sem necessidade.
-5. **`docs/RUNBOOK_INCIDENTS.md` novo**, separado do `RUNBOOK_DEV.md` (que é sobre configurar a máquina de desenvolvimento, não sobre reagir a um incidente em produção) — evita misturar dois públicos/momentos diferentes no mesmo documento.
-6. **Backups locais nunca commitados** — `packages/db/backups/` no `.gitignore` (dump de dados reais no Git seria um vazamento de dados de cliente, regra 9 do CLAUDE.md em espírito, mesmo não sendo um `.env`/token literal).
+### Gate de Plano (respondido no início da execução do M20)
+1. **Heartbeat vira evento nomeado, não comentário SSE** — é a mudança mínima que destrava tudo: sem isso, o cliente literalmente não tem como saber que o servidor está vivo (comentário SSE é invisível ao `EventSource`). `data: {}` vazio, sem payload de negócio.
+2. **Watchdog do cliente reseta em QUALQUER evento nomeado recebido** (`heartbeat`, `order.created`, `item.cancelled`), não só heartbeat — qualquer evento prova que a conexão está viva. 30s é o número já documentado em `ARCHITECTURE.md` (heartbeat a cada 15s, margem de 2x).
+3. **`onerror` do `EventSource` mostra o banner imediatamente**, sem esperar os 30s do watchdog — o watchdog é o fallback para desconexão "silenciosa" (sem erro TCP explícito), não o caminho principal.
+4. **Teste de reconexão usa `AbortController` para fechar a conexão de propósito** (não só parar de consumir o stream) — só assim o servidor detecta o `close` de verdade e o teste prova reconexão real, não só "abri duas conexões separadas".
+5. **Retry só em `apiFetch` (rotas `/v1/*`), nunca em `authFetch`** (rotas do Better Auth) — login/logout repetido automaticamente tem semântica própria (ex.: reenviar credenciais) que não é o escopo de "resiliência de rede".
+6. **`ARCHITECTURE.md` corrigido para descrever o canal único `orders`** que existe de verdade — canais múltiplos ficam registrados como desenho futuro (nota explícita, não removidos do documento).
 
 ---
+
+## Histórico — M18 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
+`packages/db/scripts/backup.sh`/`restore.sh` (`pg_dump -Fc` / `pg_restore --clean --if-exists`); job novo `backup-restore` na CI prova o ciclo completo (backup → banco novo → restore → contagem de linhas bate); `docs/RUNBOOK_INCIDENTS.md` novo.
 
 ## Histórico — M16 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
 `GET /v1/reports/daily?from=&to=` (`reports.view`): faturamento, ticket médio, mais vendidos, cancelamentos/descontos por operador — sem tabela nova, só consulta. Faturamento replica a regra de `items_total` do `computeBill` (M12). Sem cálculo automático de "dia operacional" (decisão consciente, timezone sem biblioteca testada). Fecha `KNOWN_ISSUES.md` R-16.

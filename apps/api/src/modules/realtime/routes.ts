@@ -73,8 +73,12 @@ export async function realtimeRoutes(
         /* erro de polling não derruba a conexão SSE; próximo ciclo tenta de novo */
       });
     }, POLL_INTERVAL_MS);
+    // Evento NOMEADO, não comentário SSE (`: heartbeat`) — um comentário é invisível
+    // ao `EventSource` do browser (nenhum handler dispara), então o cliente nunca
+    // saberia que o servidor está vivo. `data: {}` vazio, sem payload de negócio
+    // (M20, ACTIVE_PLAN.md Gate de Plano #1).
     const heartbeatTimer = setInterval(() => {
-      reply.raw.write(': heartbeat\n\n');
+      reply.raw.write('event: heartbeat\ndata: {}\n\n');
     }, HEARTBEAT_INTERVAL_MS);
 
     request.raw.on('close', () => {

@@ -558,5 +558,33 @@ PR #25 (`claude/m16-daily-report` → `main`), CI remota verde nos 3 jobs na seg
 ### 2026-09-10 — M18 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
 Todos verdes no monorepo inteiro. Prova de backup/restore em si só roda na CI (exige um segundo banco Postgres real — não disponível localmente, ENV-1).
 
-### 2026-09-10 — M18 — Gate Git — PENDENTE
-Branch pronta para abrir PR; aguardando CI remota (incluindo o job novo `backup-restore`). Atualizar para PASS com número da PR e commit de merge assim que fechar.
+### 2026-09-10 — M18 — Gate Git — PASS
+PR #26 (`claude/m18-backup-restore` → `main`), CI remota verde nos 4 jobs de primeira (incluindo o job novo `backup-restore` — sem regressão desta vez), merge commit `1cf638e`.
+
+---
+
+## M20 — Degradação/reconexão endurecida
+
+### 2026-09-10 — M20 — Investigação prévia — PASS
+Um agente auditou o que já existe antes do Gate de Plano (evitar redesenhar): SSE + `Last-Event-ID` + replay via `seq` já funcionavam desde o M9, mas nunca testado o ciclo desconectar→reconectar de verdade; heartbeat existia como COMENTÁRIO SSE, invisível ao `EventSource` do browser (achado real); nenhum banner "sem conexão"; nenhum retry em `apiFetch`; `ARCHITECTURE.md` descrevia canais múltiplos (`station`/`table-session`/`admin`) nunca implementados (só existe `orders`).
+
+### 2026-09-10 — M20 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` respondeu o Gate de Plano: heartbeat vira evento nomeado (não comentário); watchdog de 30s no cliente reseta em qualquer evento; `onerror` reage na hora, sem esperar os 30s; teste de reconexão usa `AbortController` para fechar a conexão de propósito; retry só em `apiFetch`/`GET` (nunca em mutações, que já têm `Idempotency-Key`; nunca em `authFetch`); `ARCHITECTURE.md` corrigido para descrever o canal único que existe de verdade.
+
+### 2026-09-10 — M20 — G2/G3/G8 Dados/feature/realtime — PASS
+- [API] `apps/api/src/modules/realtime/routes.ts`: heartbeat agora `event: heartbeat\ndata: {}\n\n`.
+- [web] `apps/web/.../kds/page.tsx`: watchdog de conexão (reseta em `heartbeat`/`order.created`/`item.cancelled`/`onopen`), `onerror` mostra banner na hora, banner calmo sem spinner (`ConnectionBanner`) presente em todos os 4 estados da tela (loading/erro/vazio/lista — `FRONTEND_GUIDELINES.md §7`).
+- [web] `apps/web/src/lib/api.ts`: `apiFetch` ganha retry com backoff (2 tentativas) só para falha de rede em `GET`; `authFetch` inalterado.
+- [docs] `ARCHITECTURE.md` corrigido em dois pontos (tabela de escolhas + §8): canal único `orders` documentado como o que existe hoje; canais múltiplos e banner/heartbeat marcados como implementados agora ou desenho futuro, sem prometer o que não existe.
+
+### 2026-09-10 — M20 — G9 Observabilidade/recuperação (normal, 2 frentes) — PASS
+Frentes:
+1. **[integração, Postgres real, CI]** `apps/api/test/integration/realtime.test.ts`, novo teste de reconexão: conecta, recebe o evento do pedido A, **fecha a conexão de propósito com `AbortController`** (não só para de ler), cria o pedido B enquanto ninguém está conectado, reconecta com `Last-Event-ID` real, confirma que B chega e A NUNCA chega de novo (replay não perde nem duplica).
+2. **[visual, browser real]** Servidor fake local (scratchpad, mesmo padrão do M9/M10) simulando o `/v1/stream`: banner "Sem conexão em tempo real — tentando reconectar" aparece na tela em ~1s depois de a conexão SSE ser derrubada de propósito, e some sozinho assim que a reconexão têm sucesso — confirmado por screenshot em cada momento, não só lido no código.
+- **Total: 1 teste de integração novo** (o cenário mais valioso e antes não coberto: reconexão real).
+
+### 2026-09-10 — M20 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
+Todos verdes no monorepo inteiro.
+
+### 2026-09-10 — M20 — Gate Git — PENDENTE
+Branch pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.

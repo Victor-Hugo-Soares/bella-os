@@ -116,6 +116,73 @@ afterAll(async () => {
   await ownerDb.close();
 });
 
+interface ParsedSseEvent {
+  id?: string;
+  event?: string;
+  data?: string;
+}
+
+function parseSseEvents(raw: string): ParsedSseEvent[] {
+  return raw
+    .split('\n\n')
+    .filter((block) => block.trim() !== '')
+    .map((block) => {
+      const parsed: ParsedSseEvent = {};
+      for (const line of block.split('\n')) {
+        if (line.startsWith('id: ')) parsed.id = line.slice(4);
+        else if (line.startsWith('event: ')) parsed.event = line.slice(7);
+        else if (line.startsWith('data: ')) parsed.data = line.slice(6);
+      }
+      return parsed;
+    });
+}
+
+async function createOrderInNewTab(): Promise<{ orderId: string }> {
+  const ownerCookie = await login(ownerEmail);
+  const suffix = newId().slice(-8);
+  const headers = { cookie: ownerCookie, 'x-tenant-id': bellaTenantId };
+  const stationRes = await app.inject({
+    method: 'POST',
+    url: '/v1/catalog/stations',
+    headers,
+    payload: { name: `Estação Realtime ${suffix}` },
+  });
+  const stationId = (stationRes.json() as { station: { id: string } }).station.id;
+  const categoryRes = await app.inject({
+    method: 'POST',
+    url: '/v1/catalog/categories',
+    headers,
+    payload: { name: `Categoria Realtime ${suffix}` },
+  });
+  const categoryId = (categoryRes.json() as { category: { id: string } }).category.id;
+  const productRes = await app.inject({
+    method: 'POST',
+    url: '/v1/catalog/products',
+    headers,
+    payload: { categoryId, stationId, name: `Produto Realtime ${suffix}`, basePriceCents: 1000 },
+  });
+  const productId = (productRes.json() as { product: { id: string } }).product.id;
+  const tableRes = await app.inject({
+    method: 'POST',
+    url: '/v1/tables',
+    headers,
+    payload: { label: `Mesa Realtime ${suffix}` },
+  });
+  const table = (tableRes.json() as { table: { qrCode: string } }).table;
+  const openRes = await app.inject({
+    method: 'POST',
+    url: `/public/${bellaTenantSlug}/tables/${table.qrCode}/session`,
+  });
+  const guestCookie = extractGuestCookie(openRes);
+  const orderRes = await app.inject({
+    method: 'POST',
+    url: `/public/${bellaTenantSlug}/orders`,
+    headers: { cookie: guestCookie, 'idempotency-key': newId() },
+    payload: { items: [{ productId, quantity: 1 }] },
+  });
+  return { orderId: (orderRes.json() as { order: { id: string } }).order.id };
+}
+
 async function pairKdsDevice(): Promise<string> {
   const cookie = await login(ownerEmail);
   const createRes = await app.inject({
@@ -203,4 +270,76 @@ describe('GET /v1/stream (SSE real)', () => {
 
     expect(received).toContain('event: order.created');
   }, 15_000);
+});
+
+describe('GET /v1/stream — desconectar e reconectar com Last-Event-ID (M20)', () => {
+  it('reconexão real: replay não perde nem duplica evento', async () => {
+    const kdsToken = await pairKdsDevice();
+
+    // 1. Conecta, gera o pedido A, lê até achar o order.created dele e guarda o `id:`
+    //    (seq do outbox) — é o Last-Event-ID que um EventSource de verdade mandaria
+    //    sozinho ao reconectar.
+    const controller1 = new AbortController();
+    const stream1 = await fetch(`${baseUrl}/v1/stream`, {
+      headers: { 'x-device-token': kdsToken },
+      signal: controller1.signal,
+    });
+    const reader1 = stream1.body!.getReader();
+    const decoder = new TextDecoder();
+
+    const orderA = await createOrderInNewTab();
+
+    let raw1 = '';
+    let lastEventId: string | undefined;
+    const deadline1 = Date.now() + 10_000;
+    while (!lastEventId && Date.now() < deadline1) {
+      const { value, done } = await reader1.read();
+      if (done) break;
+      raw1 += decoder.decode(value, { stream: true });
+      const events = parseSseEvents(raw1).filter((e) => e.event === 'order.created');
+      const match = events.find((e) => e.data?.includes(orderA.orderId));
+      if (match) lastEventId = match.id;
+    }
+    expect(lastEventId, 'não recebeu o evento do pedido A a tempo').toBeDefined();
+
+    // 2. Desconecta DE PROPÓSITO (AbortController fecha a conexão TCP de verdade —
+    //    não é só parar de ler; o servidor vê o `close` e limpa os timers dele).
+    controller1.abort();
+
+    // 3. Gera o pedido B enquanto NINGUÉM está conectado — é exatamente o evento que
+    //    o replay do Last-Event-ID precisa entregar na reconexão.
+    const orderB = await createOrderInNewTab();
+
+    // 4. Reconecta com Last-Event-ID = seq do evento de A.
+    const controller2 = new AbortController();
+    const stream2 = await fetch(`${baseUrl}/v1/stream`, {
+      headers: { 'x-device-token': kdsToken, 'last-event-id': lastEventId! },
+      signal: controller2.signal,
+    });
+    const reader2 = stream2.body!.getReader();
+
+    let raw2 = '';
+    const deadline2 = Date.now() + 10_000;
+    let sawOrderB = false;
+    while (!sawOrderB && Date.now() < deadline2) {
+      const { value, done } = await reader2.read();
+      if (done) break;
+      raw2 += decoder.decode(value, { stream: true });
+      sawOrderB = parseSseEvents(raw2).some(
+        (e) => e.event === 'order.created' && e.data?.includes(orderB.orderId),
+      );
+    }
+    controller2.abort();
+
+    const eventsAfterReconnect = parseSseEvents(raw2).filter((e) => e.event === 'order.created');
+    const orderIdsReceived = eventsAfterReconnect.map((e) => {
+      const parsed = JSON.parse(e.data ?? '{}') as { orderId?: string };
+      return parsed.orderId;
+    });
+
+    // O pedido B chegou (replay funcionou); o pedido A NUNCA chegou de novo (o
+    // servidor não reenviou o que já estava confirmado pelo Last-Event-ID).
+    expect(orderIdsReceived).toContain(orderB.orderId);
+    expect(orderIdsReceived).not.toContain(orderA.orderId);
+  }, 25_000);
 });
