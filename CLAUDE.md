@@ -46,17 +46,18 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **D completa** (M8–M15). Fase **E em andamento**: M16 (relatório do dia) e M18 (backup/restore testado) concluídos, 2026-09-10. Victor confirmou Q7 (cozinha só tela, sem impressora — M16 "Impressão" do `ROADMAP.md` fica sem data) e a ordem da Fase E: relatório → backup/restore → resiliência de conexão (próximo).
-- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6, padrão estrutural do ambiente; aconteceu de novo no M18, pego antes do push); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (15+ bugs/gaps reais entre M0–M18, incluindo regressões de teste pegas na própria CI dos M13/M14/M16).
+- Fase: **D completa** (M8–M15). Fase **E**: M16 (relatório do dia), M18 (backup/restore testado) e M20 (reconexão endurecida) concluídos, 2026-09-10 — **fecha a lista de prioridades que o Victor pediu explicitamente**. Victor confirmou Q7 (cozinha só tela, sem impressora — M16 "Impressão" do `ROADMAP.md` fica sem data).
+- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (16+ bugs/gaps reais entre M0–M20).
 - **Modo de execução: hands-off desde 2026-09-10.**
-- Branch: `main`. Último commit: `1cf638e` (merge PR #26, M18). CI verde nos **4 jobs** (novo: `backup-restore`, prova real de dump+restore contra um segundo Postgres).
-- **Confirmado pelo Victor (2026-09-10):** pagamento do Bella III continua na maquininha física, fora do sistema — ADMIN dá baixa manual. Sem integração de PSP/TEF (`docs/PRODUCT_CONTEXT.md §2` Q6). Cozinha só tela por enquanto, sem impressora térmica (Q7).
-- Último gate aprovado: G0–G3, G4–G8 completos até o M15. **Gate de saída da Fase D: PASS.** M16 fecha `KNOWN_ISSUES.md` R-16 (relatório do dia). M18 é o primeiro item real de **G9 observabilidade/recuperação**.
-- Bloqueios: nenhum.
+- Branch: `main`. Último commit: `52d39d2` (merge PR #27, M20). CI verde nos **4 jobs** de primeira, sem regressão.
+- **Confirmado pelo Victor (2026-09-10):** pagamento na maquininha física, ADMIN dá baixa manual, sem PSP/TEF (`docs/PRODUCT_CONTEXT.md §2` Q6). Cozinha só tela por enquanto (Q7).
+- **Lição real do M20, vale pra qualquer stream futuro:** um comentário SSE (`: texto`) é invisível ao `EventSource` do browser — nenhum handler dispara. Qualquer sinal que o cliente precise reagir tem que ser um evento nomeado de verdade.
+- Último gate aprovado: **Gate de saída da Fase D: PASS.** M16 fecha `KNOWN_ISSUES.md` R-16. M18/M20 são **G9 observabilidade/recuperação**.
+- Bloqueios: nenhum bloqueio técnico. **Sem próximo milestone óbvio sem novo pedido do Victor** — M17 (estoque/CMV) precisa de dados reais dele; o resto do M19 (relatórios avançados) não tem demanda real ainda.
 
 ## Próximo passo exato
 
-Investigar o que já existe de reconexão/degradação do KDS (M9 já tinha alguma lógica de SSE + polling de segurança) ANTES de planejar o Gate de Plano — evitar redesenhar algo que já funciona. Depois: escrever o Gate de Plano do milestone de resiliência de conexão (slot M20 do `ROADMAP.md`) em `docs/ACTIVE_PLAN.md` e seguir o mesmo loop.
+**Sem milestone ativo.** Perguntar ao Victor o que vem a seguir — M17 (estoque/CMV, precisa de dados reais de insumos/receitas do Bella III) ou outra prioridade fora do `ROADMAP.md` original.
 
 ## Arquitetura atual (resumo; detalhes em `docs/ARCHITECTURE.md`)
 

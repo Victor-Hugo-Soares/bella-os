@@ -586,5 +586,5 @@ Frentes:
 ### 2026-09-10 — M20 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
 Todos verdes no monorepo inteiro.
 
-### 2026-09-10 — M20 — Gate Git — PENDENTE
-Branch pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.
+### 2026-09-10 — M20 — Gate Git — PASS
+PR #27 (`claude/m20-reconnection-hardening` → `main`), CI remota verde nos 4 jobs de primeira, merge commit `52d39d2`. **Fecha a lista de prioridades que o Victor pediu para a Fase E (relatório → backup/restore → resiliência de conexão).**
