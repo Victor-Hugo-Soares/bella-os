@@ -5,12 +5,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Bell,
+  Banknote,
   ChefHat,
   Clock,
   LayoutGrid,
   LogOut,
   Mail,
+  Receipt,
   Send,
+  TrendingUp,
   UtensilsCrossed,
   User,
 } from 'lucide-react';
@@ -132,7 +135,7 @@ export default function DashboardPage() {
           </div>
         </dl>
 
-        <div className="mt-8 flex gap-3">
+        <div className="mt-8 flex flex-wrap gap-3">
           <Link
             href="/admin/catalog"
             className="flex w-fit items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
@@ -167,6 +170,27 @@ export default function DashboardPage() {
           >
             <Send className="h-4 w-4" strokeWidth={1.5} />
             Lançar pedido
+          </Link>
+          <Link
+            href="/admin/tabs"
+            className="flex w-fit items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
+          >
+            <Receipt className="h-4 w-4" strokeWidth={1.5} />
+            Comandas
+          </Link>
+          <Link
+            href="/admin/cash"
+            className="flex w-fit items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
+          >
+            <Banknote className="h-4 w-4" strokeWidth={1.5} />
+            Caixa
+          </Link>
+          <Link
+            href="/admin/reports"
+            className="flex w-fit items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
+          >
+            <TrendingUp className="h-4 w-4" strokeWidth={1.5} />
+            Relatório do dia
           </Link>
         </div>
       </main>

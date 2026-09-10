@@ -669,3 +669,28 @@ Rodados na raiz do monorepo (mesmo comando da CI), verdes. Busca ampla confirmou
 
 ### 2026-09-11 — M24 — Gate Git — PASS
 PR #31 (`claude/m24-admin-reskin-p1` → `main`), merge commit `3abbf6f`. **Nota real**: primeira rodada de CI falhou no job `lint · format · typecheck · unit` — não era lint, era `pnpm format` (prettier --check) reprovando `service-requests/page.tsx`; eu tinha rodado só `pnpm lint`/`typecheck`/`build` localmente, sem `pnpm format`/`pnpm check` completo. Corrigido com `pnpm format:fix` + novo commit; segunda rodada verde nos 4 jobs.
+
+---
+
+## M25 — Admin, parte 2a (comandas/caixa/relatório)
+
+### 2026-09-11 — M25 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` respondeu o Gate de Plano: só as 4 áreas com API pronta (comandas, fechar comanda, caixa, relatório) — equipe/permissões e configurações exigem endpoint novo, levantado durante a sondagem da API e movido pra M26+; `Idempotency-Key` gerada por tentativa de submit; UI de troco condicional a `method==='cash'`; sem seletor de intervalo customizado no relatório (só "hoje").
+
+### 2026-09-11 — M25 — Verificação de contrato (frente 2 de 3) — PASS
+Antes de implementar, li o código real (não a memória da sondagem por subagente) de `apps/api/src/modules/billing/routes.ts`+`service.ts`, `apps/api/src/modules/reports/routes.ts`+`service.ts`, `packages/contracts/src/{billing,payments,reports}.ts` e `packages/domain/src/totals.ts` — confirmei campo a campo os contratos (`BillResult`, `CreatePaymentInput` com a regra `tenderedCents` só em `cash`, `CashSessionCloseSummary`, `DailyReport`) antes de escrever qualquer tela, per regra 12 do `CLAUDE.md` (não confiar em memória/sondagem pra fato verificável).
+
+### 2026-09-11 — M25 — G5 UX (visual + regressão, frente 1 de 3) — PASS
+- `apps/web/src/app/(admin)/admin/tabs/page.tsx` (novo): lista de comandas abertas → detalhe com conta, desconto, pagamento (múltiplas formas, troco condicional), fechamento.
+- `apps/web/src/app/(admin)/admin/cash/page.tsx` (novo): abrir caixa, sangria/suprimento, fechar com contagem por forma — divergência exibida sempre, nunca escondida (mesma regra do backend).
+- `apps/web/src/app/(admin)/admin/reports/page.tsx` (novo): métricas do dia, mais vendidos, descontos/cancelamentos por operador — intervalo fixo "hoje" (00:00 local até agora).
+- `dashboard/page.tsx`: links novos pras 3 telas.
+- **[visual, browser real, fixture fake stateful]** Fluxo completo testado contra fixture que reproduz o comportamento real da API (desconto reduz saldo, pagamento exige `Idempotency-Key` — CORS da fixture tinha esquecido esse header, bug pego testando de verdade, corrigido): aplicar desconto de 10% → pagar parte em dinheiro com troco (R$ 55/R$ 60 → confirmado R$ 5,00 de troco calculado certo) → pagar parte em pix → saldo chega a 0 → botão "Fechar comanda" aparece → fechar → volta pra lista. Caixa: abrir com R$ 200 → sangria de R$ 50 registrada → tentar fechar sem preencher nenhuma forma é bloqueado com mensagem clara → fechar com R$ 190 contado em dinheiro → divergência de -R$ 10,00 exibida. Relatório: métricas/top produtos/descontos/cancelamentos por operador todos renderizados corretamente. 375px sem overflow horizontal na tela mais densa (detalhe da comanda, com 2 formulários).
+
+### 2026-09-11 — M25 — Regressão de idempotência (frente 3 de 3) — PASS
+Dois pagamentos consecutivos na mesma comanda (R$ 55 e R$ 20) cada um incrementou `paidTotalCents` corretamente (55 → 75, não duplicado nem perdido) — prova de que o `crypto.randomUUID()` é gerado a cada `handlePay` (por tentativa de submit), nunca reaproveitado entre chamadas, confirmado pelo efeito real no saldo, não só lendo o código.
+
+### 2026-09-11 — M25 — `pnpm lint`/`format`/`typecheck`/`test`/`build` — PASS
+`pnpm check` completo (root) verde. `pnpm build` do `apps/web` gera as 3 rotas novas (`/admin/tabs`, `/admin/cash`, `/admin/reports`) sem erro.
+
+### 2026-09-11 — M25 — Gate Git — PENDENTE
