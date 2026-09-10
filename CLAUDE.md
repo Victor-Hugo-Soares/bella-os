@@ -46,15 +46,16 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **B — Catálogo e operação básica**. Milestone concluído e mergeado: **M5 Catálogo (API + admin)**, 2026-09-09 (Fase A inteira + M4/M4.1 já mergeados antes). Próximo: **M6 — Mesas, QR e sessão de mesa**.
-- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push, não só uma vez no início** — voltou sozinho para outra conta 5 vezes agora em M2/M3/M4.1/M5, ver ENV-6, já é padrão estrutural do ambiente); Docker Desktop com falha (ENV-1, provavelmente resolve com reboot); workspace em OneDrive (ENV-5). CI é a frente de integração enquanto o Docker local não funciona — já provada confiável (pegou 7+ bugs reais entre M0–M5).
-- Branch: `main`. Último commit: `0919719` (merge PR #7, M5). CI verde nos 3 jobs (integração Postgres: 53/53 testes em 8 arquivos).
-- Último gate aprovado: G0–G3 (M0–M5), G5 (UX/mobile), G6 (isolamento por tenant + autenticação + permissão + dispositivo/PIN + catálogo, positivo/negativo, M1–M5). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
+- Fase: **B — Catálogo e operação básica**. Milestone concluído e mergeado: **M6 Mesas, QR e sessão de mesa**, 2026-09-10. Próximo: **M7 — Cardápio do cliente + carrinho (fim da Fase B)**.
+- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push, não só uma vez no início** — voltou sozinho para outra conta 6 vezes agora, ver ENV-6, padrão estrutural do ambiente); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (7+ bugs reais entre M0–M6).
+- **Modo de execução: hands-off desde 2026-09-10** — o Victor pediu para não pausar pedindo "posso seguir?"/"posso mergear?"; merge após CI verde acontece direto, só bloqueio real interrompe (regra 4 do CLAUDE.md).
+- Branch: `main`. Último commit: `e323755` (merge PR #9, M6). CI verde nos 3 jobs (integração Postgres: 60/60 testes, incluindo um teste de concorrência real via `Promise.all`).
+- Último gate aprovado: G0–G3 (M0–M6), G5 (UX/mobile), G6 (isolamento por tenant + autenticação + permissão + dispositivo/PIN + catálogo + sessão de mesa, positivo/negativo, M1–M6). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
 - Bloqueios: nenhum.
 
 ## Próximo passo exato
 
-Executar o **M6** conforme `docs/ACTIVE_PLAN.md`: mesas, áreas, `qr_code`, sessão de mesa (`table_sessions`) com índice único parcial (só uma sessão aberta por mesa), geração de PDF dos QR Codes.
+Executar o **M7** conforme `docs/ACTIVE_PLAN.md`: páginas públicas do cardápio do cliente (`/{tenant}/m/{código}`), consumindo catálogo (M5) e sessão de mesa (M6), carrinho local — fim da Fase B.
 
 ## Arquitetura atual (resumo; detalhes em `docs/ARCHITECTURE.md`)
 
