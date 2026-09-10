@@ -1,52 +1,57 @@
 # Bella OS — Plano Ativo
 
-> Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `docs/FRONTEND_GUIDELINES.md` §5 (cliente/mobile) → `DOMAIN_MODEL.md` §1.3/§1.4/§2 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
+> Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.5/§1.6/§2/§4/§5 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M6 (mesas, QR, sessão de mesa) está mergeado em `main` (commit `e323755`, PR #9, CI verde: 60/60 testes). Este plano do M7 assume isso como ponto de partida — **último milestone da Fase B**.
+> M7 (cardápio do cliente + carrinho) está mergeado em `main` (commit `b5a35dd`, PR #11, CI verde: 63/63 testes). Este plano do M8 assume isso como ponto de partida — **primeiro milestone da Fase C, CRÍTICO** (regra 2 do CLAUDE.md: dinheiro, comanda → 3 frentes obrigatórias).
 
-## Milestone atual: **M7 — Cardápio do cliente + carrinho** (fim da Fase B)
+## Milestone atual: **M8 — Criação idempotente de pedido** (Fase C)
 
 ### Problema
-Catálogo (M5) e sessão de mesa (M6) existem, mas nenhum cliente físico consegue ver um cardápio ainda — tudo que existe hoje exige login de staff (`catalog.manage`). M7 é a primeira tela pública de verdade: um cliente escaneia o QR, vê o cardápio do restaurante (só o que está ativo e disponível), monta um carrinho. **Não envia pedido ainda** (isso é M8) — o gate da Fase B (`ROADMAP.md`) é "monta pedido válido, sem enviar".
+Cliente monta carrinho (M7) e staff tem catálogo/mesas (M5/M6), mas nenhum pedido pode ser criado ainda. M8 é o primeiro milestone onde dinheiro real entra em jogo: um pedido precisa nascer com preço travado (snapshot), roteado para a estação certa, sem nunca duplicar (double-tap, timeout+retry) e sem nunca aceitar um total calculado pelo cliente.
 
 ### Escopo desta fatia (decisões registradas)
-- **SSE/realtime (`catalog.updated` ao vivo) fica FORA deste milestone.** O `ROADMAP.md` menciona isso no gate do M7, mas a infraestrutura de tempo real (outbox `domain_events` + `/v1/stream`) é do M9 (Fase C) e ainda não existe — construir SSE agora seria antecipar um milestone inteiro só para uma tela. Substituto do M7: o cardápio é buscado a cada visita/recarregamento da página; indisponibilidade é respeitada no momento da consulta e, de novo, no momento do pedido (M8, validação server-side). Reavaliar ao vivo quando M9 existir.
-- **Sem modificadores na tela do cliente.** M5 já deixou a API pronta (`modifier_groups`/`modifiers`/vínculo) mas sem UI nem no admin; adicionar ao carrinho do cliente exigiria construir essa UI dos dois lados ao mesmo tempo. Produtos `kind=simple` sem modificador já são um cardápio navegável real; modificadores entram quando o admin também tiver a tela (pode ser um M7.1, como o M4.1 do design).
-- **Carrinho é só client-side (localStorage), não server.** Nenhum pedido é criado neste milestone — o carrinho é estado de UI. `Idempotency-Key` é gerada ao montar o carrinho (antes de qualquer envio) e persistida junto, exatamente como `DOMAIN_MODEL.md §5` prescreve para o M8 consumir depois.
+- **Sem modificador no item do pedido.** Carrinho do M7 não tem modificador (decisão do M7); item de pedido aqui é só `product_id` + `quantity` + observação livre — `order_item_modifiers`/seleção de modificador ficam para quando a UI de modificador existir (M7.1/M9+, junto do resto da UI de modificador).
+- **Sem KDS.** Este milestone cria o ticket de produção (`production_tickets`) e o pedido nasce `queued`, mas **nenhuma tela lê/atualiza esses tickets ainda** — isso é M9. Aqui só a criação e o roteamento por estação são provados (via consulta direta ao banco, não via UI).
+- **Sem pagamento/caixa.** `ledger_entries` só recebe o lançamento `item_charge` (cobrança); pagamento é Fase D.
+- **Confirmação de pedido de cliente**: `tenant_settings.customer_order_mode` já existe (M1) mas hoje sempre é `confirm_first_order` por padrão do seed — para não bloquear o milestone com uma tela de "confirmar pedido" que não existe (isso é produto do M10), a fatia do M8 assume o pedido nasce direto `accepted` quando vem de staff, e como `submitted` aguardando quando vem de cliente **mas sem tela de confirmação ainda** — registrado como pendência explícita de UX para o M10, não escondida.
+- **Pedido pela equipe (`orders.create.on_behalf_of_table`) é rota, não é o foco da prova** — a prova principal é o pedido do cliente (via `guest`/sessão de mesa), que é o caminho mais arriscado (sem sessão de staff).
 
 ### Resultado esperado
-1. **Rota pública de leitura do catálogo** (`GET /public/:tenantSlug/catalog`): devolve categorias ativas + produtos ativos E disponíveis (nunca os desativados/esgotados) + estações (só o necessário para agrupar, não expõe nada administrativo). Sem sessão de staff, sem `catalog.manage` — mas só leitura, nunca mutação.
-2. **Página do cliente** (`apps/web/src/app/(customer)/[tenant]/m/[table]/page.tsx`, já reservada desde o M4): ao carregar, abre/entra na sessão de mesa (M6, `POST /public/.../session`, guarda o cookie automaticamente) e busca o catálogo público; renderiza categorias com scroll e produtos com preço formatado.
-3. **Carrinho** (Zustand + `persist` em localStorage, conforme `FRONTEND_GUIDELINES.md §6`): adicionar/remover item, contador, total calculado no cliente **só para exibição** (o servidor recalcula tudo no M8 — nunca confiar no total do carrinho como fonte de verdade, `DOMAIN_MODEL.md §3`). CTA fixo no rodapé ("Ver carrinho · R$ X,XX") conforme `FRONTEND_GUIDELINES.md §5`.
-4. **Mobile-first de verdade**: alvo de toque ≥ 44px, funciona em 360px, sem hover-only, texto legível a 16px — testado em viewport real, não só CSS lido.
-5. **Estados obrigatórios**: loading (skeleton), vazio (cardápio sem itens — mensagem, não tela em branco), erro (mesa/tenant não encontrado — mensagem humana), sucesso.
+1. **Schema** (`packages/db/src/schema/orders.ts`): `orders`, `order_items`, `production_tickets`, `order_events`. `ledger_entries` (mínimo: `item_charge`, o resto dos tipos entra na Fase D quando fizer sentido).
+2. **`POST /v1/orders`** (staff, com `X-Tenant-Id` + `orders.create`) e **`POST /public/:tenantSlug/orders`** (cliente, via cookie de sessão de mesa/guest, M6) — ambas convergem no mesmo serviço de criação.
+3. **Idempotência real** (`idempotency_keys`, já existe desde o M1, nunca usada até agora): `Idempotency-Key` obrigatório; mesma chave + mesmo corpo → devolve a resposta gravada da primeira vez, sem criar nada de novo; mesma chave + corpo diferente → `409 IDEMPOTENCY_MISMATCH`.
+4. **Preço sempre do servidor**: cliente manda só `productId`+`quantity`(+`notes`); servidor busca `products.base_price_cents` vigente, grava como `unit_price_cents`/`name_snapshot` no item — nunca aceita preço do corpo da requisição.
+5. **Validação de disponibilidade**: item indisponível/inativo no momento do pedido → `422 ITEM_UNAVAILABLE` com a lista dos itens problemáticos, nenhum pedido parcial é criado.
+6. **Roteamento em tickets**: um `production_tickets` por estação distinta presente no pedido (ex.: 2 itens de cozinha + 1 de bar = 2 tickets).
+7. **Efeitos colaterais na mesma transação**: `order_events` (histórico), `ledger_entries` (`item_charge` por item), `domain_events` (outbox, canal `orders`, tipo `order.created` — consumido por SSE só no M9, mas o outbox já nasce certo agora).
 
 ### Arquivos envolvidos
-- `apps/api/src/modules/catalog/public-routes.ts` (novo): `GET /public/:tenantSlug/catalog`.
-- `apps/api/src/app.ts`: registrar a nova rota pública.
-- `apps/web/src/app/(customer)/[tenant]/m/[table]/page.tsx`: substitui o placeholder do M4.
-- `apps/web/src/lib/cart.ts` (novo): store Zustand com `persist`, `Idempotency-Key` gerada uma vez por carrinho.
-- `apps/web/src/components/customer/**`: cartão de produto, lista de categorias, CTA de carrinho.
-- Testes: `apps/api/test/integration/public-catalog.test.ts` (produto inativo/indisponível nunca aparece; isolamento entre tenants).
+- `packages/db/src/schema/orders.ts` (novo) + export em `schema/index.ts`.
+- `packages/contracts/src/orders.ts` (novo): schema Zod de criação.
+- `apps/api/src/lib/idempotency.ts` (novo): wrapper genérico em cima de `idempotency_keys` — reaproveitável por qualquer mutação crítica futura (pagamento, cancelamento).
+- `apps/api/src/modules/orders/{service,routes}.ts` (novo).
+- `apps/api/src/app.ts`: registrar `orderRoutes`.
+- Testes: `apps/api/test/integration/orders.test.ts`.
 
 ### Riscos
-- **Confundir "não expõe dado administrativo" com "não precisa validar nada".** A rota pública ainda roda dentro de `withTenant()` normalmente (tenant resolvido pelo slug, igual ao M6) — não é um caso de exceção de RLS como `devices`/`guests`, é uma leitura filtrada dentro do tenant certo.
-- **Zustand é dependência nova** — confirmar versão atual via npm antes de instalar (regra 12), mesmo já estando no `FRONTEND_GUIDELINES.md §6` como decisão de stack.
-- **Total exibido no carrinho divergir do total real do pedido** (frete/taxa de serviço/couvert entram só no M12) — a tela precisa deixar claro que é uma prévia, não a conta final.
+- **Idempotência mal implementada é pior que não ter** (dá falsa sensação de segurança). A prova tem que incluir: mesmo corpo duas vezes → 1 pedido; corpo diferente mesma chave → 409; duas requisições **concorrentes** (não sequenciais) com a mesma chave → ainda 1 pedido (teste com `Promise.all`, mesmo padrão do M6).
+- **Cálculo de total**: mesmo sem taxa de serviço/desconto ainda (Fase D), o total do pedido precisa ser reconstruído por consulta independente (soma de `order_items.line_total_cents`) batendo com o que a API devolveu.
+- **Ator do pedido**: cliente (via `guest`, cookie do M6) e staff (via sessão, M2) são dois caminhos de autenticação diferentes convergindo no mesmo serviço — a função de criação não pode assumir um tipo de ator específico.
 
-### Testes (2 frentes — mudança normal; não é dinheiro/pagamento real ainda, é leitura + estado de UI)
-1. Integração (Postgres real, CI): produto inativo/indisponível nunca aparece na rota pública; produto de outro tenant nunca aparece; categoria vazia não quebra a resposta.
-2. E2E manual real (browser): abrir a página do cliente com um tenant/mesa reais (via seed), ver categorias/produtos carregarem, adicionar ao carrinho, contador atualizar, testar em 2-3 larguras.
+### Testes (3 frentes — CRÍTICO: dinheiro, comanda, regra 2 do CLAUDE.md)
+1. **Idempotência real**: mesmo corpo + mesma chave 2x → 1 pedido; corpo diferente + mesma chave → 409; duas requisições concorrentes (`Promise.all`) com a mesma chave → 1 pedido (consulta independente ao banco confirma).
+2. **Dinheiro/preço**: preço do item vem do servidor mesmo se o cliente mandar outro valor no corpo (campo ignorado, não validado — nem chega a ler); total reconstruído via `SELECT SUM(line_total_cents)` bate com a resposta da API.
+3. **Isolamento + disponibilidade**: pedido não pode conter produto de outro tenant; produto indisponível/inativo no momento do pedido → `422` com a lista, nenhuma linha criada (nem `orders`, nem `order_items`, nem ledger — tudo ou nada, mesma transação).
 
 ### Critérios de aceite
-- [ ] Cardápio público mostra só o que está ativo e disponível; nunca vaza dado de outro tenant.
-- [ ] Carrinho persiste no localStorage entre recarregamentos da página.
-- [ ] Visual mobile-first testado em pelo menos 2 larguras reais.
+- [ ] Duplo envio (double-tap) do cliente nunca duplica pedido, comprovado com requisições concorrentes reais.
+- [ ] Preço do pedido é sempre o do servidor no momento da criação (snapshot).
+- [ ] Pedido roteado corretamente por estação em `production_tickets`.
 - [ ] `pnpm check`/`pnpm build` verdes; CI remota verde.
-- [ ] Docs atualizados; `ACTIVE_PLAN.md` reescrito para o início da Fase C (M8, criação idempotente de pedido — primeiro milestone com 3 frentes obrigatórias por ser crítico).
+- [ ] Docs atualizados; `ACTIVE_PLAN.md` reescrito para M9 (KDS em tempo real).
 
-### Gate de Plano (a responder no início da execução do M7)
-Problema entendido (primeira tela pública real, mas não envia pedido) · solução menor não existiria (precisa da leitura pública do catálogo + carrinho local) · risco principal é escopo (SSE e modificadores conscientemente fora, registrado) · prova por integração real (produto indisponível nunca vaza) + E2E manual · rollback trivial (rota nova, sem mutação) · multi-tenant preservado (leitura dentro de `withTenant()`, tenant resolvido por slug como no M6).
+### Gate de Plano (respondido em 2026-09-10)
+Problema entendido (primeiro milestone onde dinheiro real é criado, motivo do tratamento crítico) · solução menor não existiria (idempotência real + snapshot de preço não são simplificáveis) · afeta dinheiro/comanda diretamente (regra 2, 3 frentes) · risco principal é concorrência/idempotência (mesma classe de risco já resolvida no M6 para sessão de mesa, reaproveitando a lição de "transações separadas") · prova por integração real + concorrência real + consulta independente · rollback trivial (tabelas novas, sem dado de produção ainda) · multi-tenant preservado (RLS normal, ator resolvido por dois caminhos possíveis mas sempre dentro do tenant certo).
 
 ## Próximos milestones (resumo; detalhes em `ROADMAP.md`)
-**Fim da Fase B** com o M7. Fase C: **M8 — criação idempotente de pedido** (primeiro milestone crítico da fase, 3 frentes obrigatórias: dinheiro/comanda) → M9 KDS em tempo real (aqui entra a infraestrutura de SSE cortada do M7) → M10 acompanhamento/expedição → M11 cancelamentos/pedido pela equipe.
+M9 KDS em tempo real (SSE, consome o outbox que o M8 já deixa pronto) → M10 acompanhamento/expedição/chamados (aqui entra a tela de confirmação de pedido de cliente, pendência registrada acima) → M11 cancelamentos/pedido pela equipe.
