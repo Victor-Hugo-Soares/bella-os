@@ -46,16 +46,16 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **C — Pedido ponta a ponta**. Milestone concluído e mergeado: **M9 KDS em tempo real (SSE)**, 2026-09-10 — o ciclo cliente→cozinha já fecha tecnicamente de ponta a ponta. Próximo: **M10 — Acompanhamento, expedição e chamados**.
-- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6, padrão estrutural do ambiente); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (9+ bugs reais entre M0–M9).
+- Fase: **C — Pedido ponta a ponta**. Milestone concluído e mergeado: **M10 Acompanhamento, expedição e chamados**, 2026-09-10 — o Golden Journey parcial (até "cliente acompanha") fecha pela UI de verdade, não só por trás. Próximo: **M11 — Cancelamentos e pedido pela equipe** (fecha a Fase C).
+- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6, padrão estrutural do ambiente); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (10+ bugs/gaps reais entre M0–M10, incluindo um gap de produto real: envio de pedido nunca ligado à UI até o M10).
 - **Modo de execução: hands-off desde 2026-09-10** — o Victor pediu para não pausar pedindo "posso seguir?"/"posso mergear?"; merge após CI verde acontece direto, só bloqueio real interrompe (regra 4 do CLAUDE.md).
-- Branch: `main`. Último commit: `17d8f53` (merge PR #15, M9). CI verde nos 3 jobs (integração Postgres: 73/73 testes em 13 arquivos, incluindo um teste de SSE real contra servidor `listen()`).
-- Último gate aprovado: G0–G3 (M0–M9), G5 (UX/mobile), G6 (isolamento/autenticação/permissão/catálogo/sessão de mesa), G7 (dinheiro/comanda, M8), **G8 KDS/realtime** (M9: SSE real + bump idempotente). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
+- Branch: `main`. Último commit: `95103fe` (merge PR #17, M10). CI verde nos 3 jobs (integração Postgres: 80/80 testes em 14 arquivos).
+- Último gate aprovado: G0–G3 (M0–M10), G4 (integração cliente→cozinha→salão, M10), G5 (UX/mobile), G6 (isolamento/autenticação/permissão), G7 (dinheiro/comanda, M8), G8 (KDS/realtime, M9). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
 - Bloqueios: nenhum.
 
 ## Próximo passo exato
 
-Executar o **M10** conforme `docs/ACTIVE_PLAN.md`: acompanhamento de status por item no cliente, estimativa em faixa, "chamar garçom"/"pedir conta", confirmação de pedido de sessão não verificada.
+Executar o **M11** conforme `docs/ACTIVE_PLAN.md`: cancelar item antes/depois da produção (permissão + motivo + `charge_on_cancel`), pedido lançado pela equipe em nome da mesa (UI — API já existe desde o M8), transferência/junção de mesa. Fecha a Fase C.
 
 ## Arquitetura atual (resumo; detalhes em `docs/ARCHITECTURE.md`)
 

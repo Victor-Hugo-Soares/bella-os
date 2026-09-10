@@ -1,39 +1,48 @@
 # Bella OS — Plano Ativo
 
-> Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.4/§2.4/§5 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
+> Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.5/§1.6/§2.5/§2.9 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M9 (KDS em tempo real) está mergeado em `main` (commit `17d8f53`, PR #15, CI verde: 73/73 testes). Este plano do M10 assume isso como ponto de partida.
+> M10 (acompanhamento, chamados, expedição) está mergeado em `main` (commit `95103fe`, PR #17, CI verde: 80/80 testes). Este plano do M11 assume isso como ponto de partida — **último milestone da Fase C**.
 
-## Milestone atual: **M10 — Acompanhamento, expedição e chamados** (Fase C)
+## Milestone atual: **M11 — Cancelamentos e pedido pela equipe** (fecha a Fase C)
 
 ### Problema
-O cliente envia o pedido (M8) e a cozinha o vê e prepara (M9), mas o cliente fica sem nenhum retorno depois de enviar — não sabe se foi aceito, se está pronto, não tem como chamar o garçom ou pedir a conta. M10 fecha essa lacuna e resolve a pendência deixada pelo M8: sessão de mesa não verificada precisa de um caminho real de aceitar/rejeitar (hoje o pedido só nasce `submitted` e fica parado).
+Hoje um item errado ou um cliente que desiste não tem como ser cancelado — o pedido existe para sempre como foi criado. E um garçom que precisa lançar um pedido em nome de uma mesa (cliente sem celular, pedido complementar) só tem a API (M8), nenhuma tela.
 
-### Escopo desta fatia (decisões registradas)
-- **"Expedição" (lista de prontos para entrega) é para o STAFF**, não para o cliente — uma tela simples (`/admin` ou `/kds` mesmo, decisão no início) listando tickets `ready` de todas as estações, para quem for levar à mesa. Não confundir com o acompanhamento do CLIENTE (que só vê o status do próprio pedido).
-- **Sem app de garçom dedicado.** "Chamada aparece no salão" = uma lista simples de `service_requests` abertos, visível em qualquer tela de staff autenticada (reaproveita o admin, `requirePermission`) — não é um app de salão dedicado com mapa de mesas (isso é produto de fase mais madura).
-- **Confirmação de pedido de sessão não verificada**: implementa o caminho que o M8 deixou pendente — quando `tenant_settings.customer_order_mode !== 'direct'`, o pedido nasce `submitted` e só um staff com permissão aceita/rejeita (`PATCH /v1/orders/:id/accept` / `/reject`). Sem UI de configurar esse modo por tenant ainda (fica no valor padrão do seed).
-- **Sem SSE dedicado ao cliente ainda desta forma**: reaproveita o mesmo mecanismo do M9 (outbox + polling), mas autenticado pelo **guest** (cookie de sessão de mesa, M6), não por dispositivo — precisa de uma pequena extensão em `requireDevice`-like para aceitar guest também, ou uma rota de stream própria para clientes.
+### Escopo desta fatia (corte registrado)
+**Transferência/junção de mesa (`table_session_transfers`) fica FORA deste milestone**, mesmo o `ROADMAP.md` original listando no M11. Motivo: é um problema à parte de verdade (concorrência real — pedido chegando durante a transferência precisa cair na comanda certa, exige seu próprio teste de corrida) e não bloqueia nem cancelamento nem pedido pela equipe, que já são dois pedaços substanciais. Fica reservado para quando a operação real do Bella III mostrar que é necessário (mesas raramente precisam ser fundidas no dia a dia — cancelamento e pedido pela equipe são muito mais comuns).
 
 ### Resultado esperado
-1. `service_requests` (`DOMAIN_MODEL.md §1.4`): `call_waiter`/`request_bill`, criado pelo cliente (autenticado por sessão de mesa), fechado por staff.
-2. `PATCH /v1/orders/:id/accept` e `/reject` (staff, permissão a definir — reaproveitar `orders.create` ou nova chave).
-3. Endpoint de status do pedido para o cliente (`GET /public/.../orders/:id` ou "meus pedidos da sessão") + SSE para o cliente (variante do M9, autenticado por guest).
-4. Tela do cliente: status do pedido (por item), botões "chamar garçom"/"pedir a conta".
-5. Tela de staff: lista de tickets prontos para expedir + lista de chamados abertos, com ação de "atender".
+1. **Cancelar item antes da produção** (`orders.cancel.before_production`): item em `queued` → `cancelled`, reversão total no ledger (`item_reversal`), ticket atualizado (some da lista se for o único item, ou o ticket permanece para os itens restantes).
+2. **Cancelar item depois da produção** (`orders.cancel.after_production`): item em `preparing`/`ready`/`delivered` → `cancelled`, exige motivo + decisão `charge_on_cancel` (cliente paga = sem reversão; cortesia/perda = `item_reversal`).
+3. **Alerta no KDS**: ticket com item cancelado mostra destaque visual "CANCELADO".
+4. **Pedido pela equipe** (tela nova, `apps/web`): garçom/caixa autenticado escolhe uma mesa/comanda aberta e monta um pedido — consome a MESMA `POST /v1/orders` do M8 (`source: 'staff'`), só faltava a tela.
+
+### Arquivos envolvidos
+- `apps/api/src/modules/orders/service.ts`: `cancelOrderItem()`.
+- `apps/api/src/modules/orders/routes.ts`: `PATCH /v1/orders/:orderId/items/:itemId/cancel` (staff) — cliente não cancela o próprio item neste milestone (sempre passa pelo staff, mais simples e mais seguro para dinheiro).
+- `apps/web/src/app/(kds)/kds/page.tsx`: destaque de item cancelado.
+- `apps/web/src/app/(admin)/admin/staff-order/**` (novo, nome a definir no início): tela de pedido pela equipe.
+- Testes: `apps/api/test/integration/cancel-order.test.ts`.
 
 ### Riscos
-- Maior risco é de ESCOPO (esta é a fatia mais "produto" até agora, fácil de crescer). Manter o corte estrito: sem mapa de salão, sem notificação push, sem múltiplas comandas por sessão neste milestone.
-- SSE para o cliente reaproveita a lição do M9 (`ADR-033`) — cuidado para não duplicar toda a lógica; extrair o que for genérico.
+- **`charge_on_cancel` errado é dinheiro perdido de verdade** — mesmo não sendo um novo tipo de milestone crítico isolado, esta parte específica (reversão de ledger) precisa da mesma disciplina do M8: preço sempre reconstruído do item, nunca aceito do corpo da requisição.
+- **Cancelar depois de `delivered`** (`DOMAIN_MODEL.md §2.5`: "só gerente, sempre com motivo, tratado como estorno") — decisão: incluído na mesma regra de "depois da produção" (mesma permissão, mesmo fluxo), sem uma permissão extra só para isso neste milestone — revisitar se a operação real mostrar que precisa diferenciar.
 
-### Testes (2 frentes — mudança normal)
-1. Integração: aceitar/rejeitar pedido muda o estado certo; chamado é criado e aparece para staff; cliente só vê os próprios pedidos/chamados (nunca de outra sessão/tenant).
-2. E2E manual real: cliente chama garçom, staff vê o chamado; status do pedido muda na tela do cliente quando o KDS avança o ticket.
+### Testes (3 frentes — CRÍTICO: regra 2 do CLAUDE.md lista "cancelamento" explicitamente)
+1. Cancelar antes da produção: reversão total no ledger, consulta independente confirma saldo da comanda voltou ao que era antes do item.
+2. Cancelar depois da produção com `charge_on_cancel=true` (cliente paga): SEM reversão — ledger continua cobrando; com `charge_on_cancel=false` (cortesia): COM reversão.
+3. Negativo: sem `orders.cancel.before_production`/`orders.cancel.after_production` → 403; cancelar item de outro tenant → 404 (nunca vaza).
+
+### Critérios de aceite
+- [ ] Cancelamento antes/depois da produção funciona com ledger correto nos dois casos.
+- [ ] KDS mostra alerta visual em ticket com item cancelado.
+- [ ] Garçom consegue lançar pedido pela tela, não só pela API.
+- [ ] `pnpm check`/`pnpm build` verdes; CI remota verde.
+- [ ] Docs atualizados; `ACTIVE_PLAN.md` reescrito para M12 (início da Fase D: ledger, taxas, couvert, descontos).
 
 ### Gate de Plano (respondido em 2026-09-10)
-Problema entendido (cliente sem retorno após enviar pedido; sessão não verificada sem caminho de aceite) · solução menor não existiria (precisa de estado real de pedido + canal de chamado) · risco principal é ESCOPO — cortado ainda mais nesta execução: **sem SSE dedicado ao cliente** (adiado; o cliente usa polling a cada poucos segundos do próprio status, que já satisfaz "muda em <3s" sem duplicar a lógica de autenticação dupla do M9) · prova por integração real + E2E manual · rollback trivial (tabela/rotas novas) · multi-tenant preservado (tudo dentro de `withTenant()`, ator resolvido por guest ou staff conforme a rota).
-
-**Corte adicional registrado nesta execução:** "expedição" (tickets prontos) e "chamados" (service_requests) convergem numa única tela de staff (`/admin/service-requests`) em vez de duas telas separadas — mesma tela, duas listas. SSE do cliente fica para um M10.1 se a latência do polling se mostrar insuficiente na prática.
+Problema entendido (cancelamento é operação do dia a dia; pedido pela equipe já tem API, só falta tela) · solução menor não existiria (dinheiro real muda de mãos) · risco principal é ACERTAR o ledger dos dois tipos de cancelamento (regra 2: crítico, 3 frentes) · corte de escopo registrado (transferência de mesa fica para depois, problema à parte) · prova por integração real + consulta independente ao ledger · rollback trivial (rota nova) · multi-tenant preservado (RLS normal em tudo).
 
 ## Próximos milestones (resumo; detalhes em `ROADMAP.md`)
-M11 cancelamentos/pedido pela equipe (UI) → Fase D (M12–M15: ledger completo, caixa, pagamentos, divisão de conta, Golden Journey completa).
+**Fim da Fase C.** Fase D: M12 ledger completo (taxas, couvert, descontos) → M13 sessão de caixa e pagamentos → M14 fechamento de caixa e relatórios → M15 divisão de conta e Golden Journey completa.
