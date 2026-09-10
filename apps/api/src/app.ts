@@ -12,6 +12,7 @@ import { deviceRoutes } from './modules/identity/devices/routes';
 import { tenantsRoutes } from './modules/identity/tenants-routes';
 import { catalogRoutes } from './modules/catalog/routes';
 import { tablesRoutes } from './modules/tables/routes';
+import { orderRoutes } from './modules/orders/routes';
 
 // Versão lida do package.json em tempo de build/execução (tsup embute o JSON).
 import packageJson from '../package.json' with { type: 'json' };
@@ -92,6 +93,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       auth,
       webOriginIsHttps: config.NODE_ENV === 'production',
     });
+    await app.register(orderRoutes, { db: db.db, auth });
   }
 
   return app;

@@ -273,3 +273,31 @@ PR #9 (`claude/m6-tables` → `main`), CI remota verde nos 3 jobs (60/60 testes 
 
 ### 2026-09-10 — M7 — `pnpm check` + build do monorepo — PASS
 `pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo a rota dinâmica `/{tenant}/m/{table}` (antes placeholder do M4, agora com conteúdo real) gerada no build de produção.
+
+### 2026-09-10 — M7 — Gate Git — PASS
+PR #11 (`claude/m7-customer-menu` → `main`), CI remota verde nos 3 jobs (63/63 testes), merge commit `b5a35dd`. **Fase B completa.**
+
+---
+
+## Milestone M8 — Criação idempotente de pedido (Fase C, CRÍTICO)
+
+### 2026-09-10 — M8 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M8) registrou o escopo antes de codar: sem modificador no item (carrinho do M7 não tem), sem KDS (M9 lê os tickets criados aqui), sem pagamento (Fase D). Tratado como **crítico** (regra 2: dinheiro/comanda) — 3 frentes exigidas. Gate de Plano respondido no próprio arquivo.
+
+### 2026-09-10 — M8 — G2 Dados/contratos — PASS
+- [schema] `packages/db/src/schema/orders.ts`: `orders`/`order_items`/`production_tickets`/`order_events`/`ledger_entries` (só `item_charge` neste milestone), todas com RLS normal (ADR-021). Migration `0006` limpa (`drizzle-kit check`).
+- **Achado real de reaproveitamento:** `idempotency_keys` e `domain_events` já existiam desde o M1 (criadas na fundação, nunca usadas) — nenhuma migration nova foi necessária para elas, só o código que finalmente as usa.
+- **Decisão de arquitetura registrada (ADR-032):** idempotência real via `INSERT ... ON CONFLICT DO NOTHING` na MESMA transação (diferente do padrão do M6/ADR-031, que exigia duas transações separadas — aqui não há exceção que aborte a transação, então dá para continuar). `apps/api/src/lib/idempotency.ts` (`withIdempotency`) é reaproveitável por qualquer mutação crítica futura.
+
+### 2026-09-10 — M8 — G3/G7 Feature e dinheiro/comanda (CRÍTICO, 3 frentes) — PASS
+Frentes (`apps/api/test/integration/orders.test.ts`, Postgres real na CI, `bella_app`):
+1. **Fluxo feliz + dinheiro:** cliente (via cookie de sessão de mesa, M6) cria pedido; preço do item vem do servidor (nunca do corpo — o schema Zod nem aceita um campo de preço do cliente); total da API bate com `SUM(line_total_cents)` consultado independentemente; ledger (`item_charge`) gravado com o valor certo; ticket de produção roteado para a estação certa do produto.
+2. **Tudo ou nada:** produto esgotado no momento do pedido → `422 ITEM_UNAVAILABLE`; consulta independente confirma que NEM o pedido NEM a chave de idempotência ficaram gravados (o rollback desfaz os dois juntos).
+3. **Idempotência real, 3 casos:** (a) mesma chave + mesmo corpo 2x → mesmo `order.id` nas duas respostas, e só 1 linha em `orders` para aquela chave; (b) mesma chave + corpo diferente → `409 IDEMPOTENCY_MISMATCH`; (c) **concorrência real** (`Promise.all`, não sequencial) com a mesma chave → nunca duas linhas de pedido para a mesma chave, confirmado por consulta independente ao banco (uma das duas respostas pode legitimamente ser 409 "em andamento" se a janela de tempo for exata, mas nunca dois pedidos diferentes).
+- **Total: 5 testes novos** em `orders.test.ts`.
+
+### 2026-09-10 — M8 — Escopo cortado: `sequence_number` simplificado — registrado
+`DOMAIN_MODEL.md §1.5` pede um número por dia operacional (`tenant_settings.business_day_cutoff`). Implementado como `COUNT(*) + 1` por tenant (sem reset diário, sem garantia de unicidade sob concorrência extrema) — cosmético, não afeta dinheiro nem isolamento (`orders.id` é a chave real). Corrigir quando um relatório diário de verdade precisar disso (Fase D). Ver ADR-032.
+
+### 2026-09-10 — M8 — `pnpm check` + build do monorepo — PASS
+`pnpm check` e `pnpm build` verdes no monorepo inteiro.
