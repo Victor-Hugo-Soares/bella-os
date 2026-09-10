@@ -28,6 +28,8 @@
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "app-role": "tsx --env-file-if-exists=../../.env src/set-app-role-password.ts",
     "seed": "tsx --env-file-if-exists=../../.env src/seed/index.ts",
+    "backup": "bash scripts/backup.sh",
+    "restore": "bash scripts/restore.sh",
     "test": "vitest run"
   },
   "dependencies": {

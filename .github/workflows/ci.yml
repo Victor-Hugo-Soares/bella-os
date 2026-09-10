@@ -81,3 +81,59 @@ jobs:
           for i in $(seq 1 30); do curl -fsS http://localhost:3001/health >/dev/null 2>&1 && break || sleep 0.5; done
           curl -fsS http://localhost:3001/health | grep -q '"status":"ok"'
           kill $PID
+
+  backup-restore:
+    name: backup/restore testado (M18)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bella
+          POSTGRES_PASSWORD: bella
+          POSTGRES_DB: bella_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U bella -d bella_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgres://bella:bella@localhost:5432/bella_test
+      RESTORE_DATABASE_URL: postgres://bella:bella@localhost:5432/bella_test_restore
+      APP_DB_PASSWORD: ci_only_app_role_password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Nunca confiar no cliente que o runner já tem por padrão -- instalar a versão
+      # exata do servidor (ADR do Gate de Plano do M18) evita mismatch silencioso.
+      - name: instala postgresql-client-16
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+      - run: pnpm db:migrate
+      - run: pnpm db:app-role
+      - run: pnpm db:seed
+      - name: conta linhas do banco original
+        run: |
+          ORIG_TENANTS=$(psql "$DATABASE_URL" -tAc "select count(*) from tenants")
+          ORIG_MEMBERSHIPS=$(psql "$DATABASE_URL" -tAc "select count(*) from memberships")
+          echo "ORIG_TENANTS=$ORIG_TENANTS" >> "$GITHUB_ENV"
+          echo "ORIG_MEMBERSHIPS=$ORIG_MEMBERSHIPS" >> "$GITHUB_ENV"
+      - name: backup
+        run: bash packages/db/scripts/backup.sh packages/db/backups/ci.dump
+      - name: cria banco novo vazio e restaura
+        run: |
+          psql "postgres://bella:bella@localhost:5432/postgres" -c "create database bella_test_restore"
+          DATABASE_URL="$RESTORE_DATABASE_URL" bash packages/db/scripts/restore.sh packages/db/backups/ci.dump
+      - name: compara contagens -- prova real, não só "rodou sem erro"
+        run: |
+          NEW_TENANTS=$(psql "$RESTORE_DATABASE_URL" -tAc "select count(*) from tenants")
+          NEW_MEMBERSHIPS=$(psql "$RESTORE_DATABASE_URL" -tAc "select count(*) from memberships")
+          echo "original: tenants=$ORIG_TENANTS memberships=$ORIG_MEMBERSHIPS"
+          echo "restaurado: tenants=$NEW_TENANTS memberships=$NEW_MEMBERSHIPS"
+          [ "$ORIG_TENANTS" = "$NEW_TENANTS" ] || { echo "::error::contagem de tenants divergente após restore"; exit 1; }
+          [ "$ORIG_MEMBERSHIPS" = "$NEW_MEMBERSHIPS" ] || { echo "::error::contagem de memberships divergente após restore"; exit 1; }

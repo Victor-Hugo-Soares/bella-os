@@ -2,31 +2,39 @@
 
 > Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.6/§4 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M15 (fechar comanda, divisão de conta, Golden Journey) está mergeado em `main` (commit `990dc83`, PR #24, CI verde de primeira). **Fase D completa.** Victor confirmou em 2026-09-10: cozinha por enquanto é só tela (Q7) — M16 "Impressão" do `ROADMAP.md` fica sem data, slot reaproveitado. Ordem escolhida por ele para a Fase E: relatório do dia → backup/restore → resiliência de conexão.
+> M16 (relatório do dia operacional) está mergeado em `main` (commit `5342e84`, PR #25, CI verde na segunda rodada — 1 regressão de teste pega pela própria CI). Victor confirmou a ordem da Fase E: relatório do dia → **backup/restore** → resiliência de conexão.
 
-## Milestone atual: **M16 — Relatório do dia operacional** (Fase E, reaproveitando o slot da impressão)
+## Milestone atual: **M18 — Backup/restore testado + runbook de incidentes** (Fase E)
 
 ### Problema
-O M14 original (`ROADMAP.md`) previa "relatório do dia operacional (faturamento, ticket médio, mais vendidos, cancelamentos/descontos por operador)" e isso nunca foi entregue (`KNOWN_ISSUES.md` R-16). Toda a base de dados já existe (`order_items`, `order_events`, `ledger_entries`) — falta só a consulta.
+Hoje não existe nenhuma forma testada de recuperar o banco de um desastre — nem script de backup/restore no repositório, nem prova de que um dump realmente volta a funcionar, nem runbook para quando algo der errado. Railway (hosting alvo, `ARCHITECTURE.md`) tem backup automático nos planos pagos, mas isso não é testado por nós nem serve como fallback local/portável.
 
 ### Resultado esperado
-1. **`GET /v1/reports/daily?from=<ISO>&to=<ISO>`** (`reports.view`, permissão já existente desde o M2): faturamento (soma de `line_total_cents` de itens não cancelados ou cancelados com `charge_on_cancel`, por `orders.submitted_at` no intervalo), ticket médio (faturamento ÷ número de comandas distintas com pedido no intervalo), mais vendidos (top produtos por receita e quantidade), cancelamentos por operador (agrupado de `order_events` tipo `item.cancelled`), descontos por operador (agrupado de `ledger_entries` tipo `discount`).
-2. Nomes de operador resolvidos via `users` (tabela global, sem RLS — consulta direta dentro da mesma transação).
+1. **`packages/db/scripts/backup.sh`** e **`restore.sh`**: `pg_dump --format=custom` / `pg_restore --clean --if-exists`, usando `DATABASE_URL`. `pnpm db:backup` / `pnpm db:restore <arquivo>`.
+2. **Prova real na CI** (não só "os comandos rodaram sem erro"): job novo que semeia dados, faz backup, cria um banco novo vazio, restaura o dump nele, e compara contagens de linhas entre o banco original e o restaurado — se não bater, o job falha.
+3. **`docs/RUNBOOK_INCIDENTS.md`** (novo, separado do `RUNBOOK_DEV.md` que é de setup): passo a passo para API fora do ar, Postgres inacessível, restaurar de um backup, e confirmar que a restauração deu certo.
 
 ### Riscos
-- **"Dia operacional" com virada às 05:00 (`tenant_settings.business_day_cutoff`, Q9) exigiria matemática de fuso horário correta** — sem biblioteca de timezone no projeto hoje, implementar isso à mão é risco real de bug silencioso num relatório financeiro. Decisão: `from`/`to` são timestamps ISO explícitos (quem chama decide o intervalo), não um cálculo automático de "hoje" no fuso do tenant. Vira dívida consciente, igual o próprio comentário do M8 já previa ("entra quando um relatório diário real precisar disso") — a hora certa de resolver isso é quando existir uma TELA real de relatório, com biblioteca de timezone testada, não agora só pela API.
-- **Contagem duplicada de operador**: um mesmo usuário pode ter várias entradas no período — agrupar sempre por `userId`, nunca assumir 1 evento = 1 operador único no dia.
+- **Comando de dump ou restore "funciona" mas silenciosamente perde dados** (ex.: `--data-only` sem estrutura, ou schema incompatível) — por isso a prova por contagem de linhas na CI é obrigatória, não é feature opcional.
+- **Versão do `pg_dump`/`pg_restore` do runner da CI divergindo da versão 16 do Postgres do serviço** — pode gerar avisos ou incompatibilidade sutil. Instalar explicitamente `postgresql-client-16` no job em vez de confiar no que já vem no runner.
+- **Backup local nunca é o único plano** — o runbook deve deixar claro que o backup automático do Railway (se habilitado) é a primeira linha de defesa em produção; o script daqui é o fallback portátil e o que prova que um dump volta a funcionar de verdade.
 
-### Testes (2 frentes — normal, não críticas: é leitura, não mutação de dinheiro)
-1. Integração: comanda com item cancelado (`charge_on_cancel=false`) não conta no faturamento; comanda com `charge_on_cancel=true` conta; desconto aplicado aparece agrupado no operador certo; cancelamento aparece agrupado no operador certo; ticket médio bate com cálculo manual.
-2. Negativo: sem `reports.view` → 403; isolamento cross-tenant (dados de outro tenant nunca aparecem).
+### Testes (2 frentes — normal: não é mutação de dinheiro em produção, é infraestrutura)
+1. CI: dump → banco novo → restore → contagem de linhas bate entre original e restaurado (tenants, orders, ledger_entries, pelo menos).
+2. Inspeção: `docs/RUNBOOK_INCIDENTS.md` revisado contra o próprio script (os comandos do runbook têm que ser exatamente os que a CI já provou que funcionam).
 
-### Gate de Plano (respondido no início da execução do M16)
-1. **Nenhuma tabela nova, nenhuma migration** — é só consulta sobre dados já existentes.
-2. **Sem cálculo automático de "dia operacional"** (ver Riscos) — `from`/`to` explícitos no query string, validados com `z.iso.datetime()` (já usado em `health.ts`).
-3. **Faturamento usa a mesma regra de `items_total` do `computeBill`** (M12): item conta se não cancelado OU cancelado com `charge_on_cancel=true` — nunca reimplementar essa regra do zero, replicar exatamente.
-4. **Permissão: `reports.view`**, já existe desde o M2 (`owner`/`manager`/`cashier` têm; `waiter`/`kitchen` não) — nenhuma chave nova necessária.
-5. **Agrupamento por operador feito em JavaScript, não em SQL**: `actor`/`created_by` são `jsonb`, e o volume de eventos por dia de um restaurante é pequeno o bastante para não justificar `GROUP BY` em JSON no Postgres — mesmo padrão de "buscar linhas e reduzir em código" já usado em `sumLedgerByTypes` (M12).
+### Gate de Plano (respondido no início da execução do M18)
+1. **Formato `custom` do `pg_dump`** (`-Fc`), não SQL plano — permite `pg_restore --clean --if-exists` (restauração limpa em cima de um banco já existente, útil para o próprio teste de CI) e é mais compacto. `--no-owner --no-privileges` para o dump não depender de quem é dono das tabelas no banco de origem (relevante porque a app roda como `bella_app`, não como dono, ADR-020).
+2. **Prova de verdade na CI, não só "rodou sem erro"**: o job novo cria um SEGUNDO banco (`bella_test_restore`) no mesmo serviço Postgres, restaura o dump nele, e compara `count(*)` de `tenants`, `orders`, `order_items` e `ledger_entries` entre origem e destino — só passa se os números baterem exatamente.
+3. **`postgresql-client-16` instalado explicitamente no job** (`apt-get install`) — nunca confiar no que o runner já tem por padrão, evita mismatch de versão do `pg_dump` cliente vs. servidor.
+4. **Scripts em bash simples** (`packages/db/scripts/backup.sh`/`restore.sh`), não TypeScript — são wrappers finos sobre `pg_dump`/`pg_restore`, chamar um binário externo de dentro de um script Node só adicionaria uma camada sem necessidade.
+5. **`docs/RUNBOOK_INCIDENTS.md` novo**, separado do `RUNBOOK_DEV.md` (que é sobre configurar a máquina de desenvolvimento, não sobre reagir a um incidente em produção) — evita misturar dois públicos/momentos diferentes no mesmo documento.
+6. **Backups locais nunca commitados** — `packages/db/backups/` no `.gitignore` (dump de dados reais no Git seria um vazamento de dados de cliente, regra 9 do CLAUDE.md em espírito, mesmo não sendo um `.env`/token literal).
+
+---
+
+## Histórico — M16 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
+`GET /v1/reports/daily?from=&to=` (`reports.view`): faturamento, ticket médio, mais vendidos, cancelamentos/descontos por operador — sem tabela nova, só consulta. Faturamento replica a regra de `items_total` do `computeBill` (M12). Sem cálculo automático de "dia operacional" (decisão consciente, timezone sem biblioteca testada). Fecha `KNOWN_ISSUES.md` R-16.
 
 ---
 

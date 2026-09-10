@@ -87,7 +87,7 @@ pnpm db:generate | pnpm db:check       # migrations Drizzle
 
 - `CLAUDE.md` — regras + estado resumido + índice (manter < ~12–15k tokens).
 - `docs/PROJECT_STATE.md` — estado detalhado · `docs/ACTIVE_PLAN.md` — plano e próximo passo exato · `docs/DECISIONS.md` — ADRs · `docs/QA_LEDGER.md` — gates e evidências · `docs/KNOWN_ISSUES.md` — riscos, incógnitas, ambiente · `docs/PRODUCT_NOTES.md` — ideias classificadas · `docs/memory/archive/` — histórico.
-- Referência: `docs/PRODUCT_CONTEXT.md`, `docs/ARCHITECTURE.md`, `docs/DOMAIN_MODEL.md`, `docs/ROADMAP.md`, `docs/TESTING_STRATEGY.md`, `docs/FRONTEND_GUIDELINES.md`, `docs/RUNBOOK_DEV.md`, `docs/BELLA_OS_AUTONOMOUS_HANDOFF.md` (governança), `docs/source/` (docx original).
+- Referência: `docs/PRODUCT_CONTEXT.md`, `docs/ARCHITECTURE.md`, `docs/DOMAIN_MODEL.md`, `docs/ROADMAP.md`, `docs/TESTING_STRATEGY.md`, `docs/FRONTEND_GUIDELINES.md`, `docs/RUNBOOK_DEV.md` (setup da máquina), `docs/RUNBOOK_INCIDENTS.md` (M18 — o que fazer quando algo dá errado em produção: API fora do ar, Postgres inacessível, restaurar backup), `docs/BELLA_OS_AUTONOMOUS_HANDOFF.md` (governança), `docs/source/` (docx original).
 
 ## Compactação de contexto
 

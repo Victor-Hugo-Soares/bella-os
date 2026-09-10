@@ -20,6 +20,9 @@ Thumbs.db
 playwright-report/
 test-results/
 
+# backups de banco (M18) — nunca versionar dump de dados reais
+packages/db/backups/
+
 # editores
 .vscode/*
 !.vscode/extensions.json
