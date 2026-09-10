@@ -12,6 +12,8 @@ import {
 } from '@bella/domain';
 import type {
   ApplyDiscountInput,
+  CashMovementInput,
+  CloseCashSessionInput,
   CreatePaymentInput,
   OpenCashSessionInput,
 } from '@bella/contracts';
@@ -456,5 +458,171 @@ export async function voidPayment(
     });
 
     return { id: payment.id, status: 'voided' };
+  });
+}
+
+export interface CashMovementResult {
+  id: string;
+  type: string;
+  method: string;
+  amountCents: number;
+}
+
+/**
+ * Registra sangria/suprimento na sessão de caixa (M14). Sessão precisa estar `open` —
+ * mesmo tipo de proteção que `recordPayment` já dá para comanda fechada
+ * (`CASH_SESSION_CLOSED`, código reservado desde o M0).
+ */
+export async function recordCashMovement(
+  db: Db,
+  tenantId: string,
+  cashSessionId: string,
+  actor: BillingActor,
+  input: CashMovementInput,
+): Promise<CashMovementResult> {
+  return withTenant(db, tenantId, async (tx) => {
+    const [session] = await tx
+      .select({ status: schema.cashSessions.status })
+      .from(schema.cashSessions)
+      .where(
+        and(eq(schema.cashSessions.id, cashSessionId), eq(schema.cashSessions.tenantId, tenantId)),
+      )
+      .for('update');
+    if (!session) throw new AppError('NOT_FOUND', 'Sessão de caixa não encontrada.');
+    if (session.status !== 'open') {
+      throw new AppError('CASH_SESSION_CLOSED', 'Sessão de caixa já está fechada.');
+    }
+
+    const [row] = await tx
+      .insert(schema.cashMovements)
+      .values({
+        id: newId(),
+        tenantId,
+        cashSessionId,
+        type: input.type,
+        method: input.method,
+        amountCents: input.amountCents,
+        reason: input.reason,
+        byUserId: actor.userId,
+      })
+      .returning();
+
+    return { id: row!.id, type: row!.type, method: row!.method, amountCents: row!.amountCents };
+  });
+}
+
+/**
+ * `expected` por forma de pagamento (M14, ACTIVE_PLAN.md Gate de Plano #2): sempre
+ * derivado de `payments`+`cashMovements`, nunca armazenado à parte. `cash` soma também
+ * o fundo de troco de abertura.
+ */
+async function expectedByMethod(
+  tx: Tx,
+  tenantId: string,
+  cashSessionId: string,
+  openingFloatCents: number,
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  const add = (method: string, delta: number) => map.set(method, (map.get(method) ?? 0) + delta);
+  add('cash', openingFloatCents);
+
+  const paymentRows = await tx
+    .select({ method: schema.payments.method, amountCents: schema.payments.amountCents })
+    .from(schema.payments)
+    .where(
+      and(
+        eq(schema.payments.tenantId, tenantId),
+        eq(schema.payments.cashSessionId, cashSessionId),
+        eq(schema.payments.status, 'confirmed'),
+      ),
+    );
+  for (const p of paymentRows) add(p.method, p.amountCents);
+
+  const movementRows = await tx
+    .select()
+    .from(schema.cashMovements)
+    .where(
+      and(
+        eq(schema.cashMovements.tenantId, tenantId),
+        eq(schema.cashMovements.cashSessionId, cashSessionId),
+      ),
+    );
+  for (const m of movementRows) {
+    add(m.method, m.type === 'withdrawal' ? -m.amountCents : m.amountCents);
+  }
+
+  return map;
+}
+
+export interface CashSessionCloseSummary {
+  id: string;
+  status: string;
+  byMethod: Array<{
+    method: string;
+    expectedCents: number;
+    countedCents: number;
+    differenceCents: number;
+  }>;
+}
+
+/**
+ * Fecha a sessão de caixa (M14). Idempotente por RECONSTRUÇÃO, não por bloqueio
+ * (ACTIVE_PLAN.md Gate de Plano #3): `payments`/`cashMovements` não mudam mais depois
+ * que a sessão fecha (ambos checam `status = 'open'` antes de gravar), então recalcular
+ * `expected`/diferença numa sessão já fechada sempre dá a mesma resposta — uma segunda
+ * chamada só NÃO insere `cashDivergences` de novo. Toda forma onde `counted ≠ expected`
+ * é gravada em `cashDivergences` — inclusive forma esperada que o operador esqueceu de
+ * contar (`counted` ausente = 0, vira divergência visível, nunca ajustada em silêncio).
+ */
+export async function closeCashSession(
+  db: Db,
+  tenantId: string,
+  cashSessionId: string,
+  actor: BillingActor,
+  input: CloseCashSessionInput,
+): Promise<CashSessionCloseSummary> {
+  return withTenant(db, tenantId, async (tx) => {
+    const [session] = await tx
+      .select()
+      .from(schema.cashSessions)
+      .where(
+        and(eq(schema.cashSessions.id, cashSessionId), eq(schema.cashSessions.tenantId, tenantId)),
+      )
+      .for('update');
+    if (!session) throw new AppError('NOT_FOUND', 'Sessão de caixa não encontrada.');
+
+    const expected = await expectedByMethod(tx, tenantId, cashSessionId, session.openingFloatCents);
+    const countedMap = new Map<string, number>(input.counted.map((c) => [c.method, c.amountCents]));
+    const methods = new Set([...expected.keys(), ...countedMap.keys()]);
+
+    const byMethod = [...methods].map((method) => {
+      const expectedCents = expected.get(method) ?? 0;
+      const countedCents = countedMap.get(method) ?? 0;
+      return { method, expectedCents, countedCents, differenceCents: countedCents - expectedCents };
+    });
+
+    if (session.status === 'open') {
+      const divergenceRows = byMethod
+        .filter((m) => m.differenceCents !== 0)
+        .map((m) => ({
+          id: newId(),
+          tenantId,
+          cashSessionId,
+          method: m.method,
+          expectedCents: m.expectedCents,
+          countedCents: m.countedCents,
+          differenceCents: m.differenceCents,
+          acknowledgedBy: actor.userId,
+        }));
+      if (divergenceRows.length > 0) {
+        await tx.insert(schema.cashDivergences).values(divergenceRows);
+      }
+      await tx
+        .update(schema.cashSessions)
+        .set({ status: 'closed', closedBy: actor.userId, closedAt: new Date() })
+        .where(eq(schema.cashSessions.id, cashSessionId));
+    }
+
+    return { id: cashSessionId, status: 'closed', byMethod };
   });
 }

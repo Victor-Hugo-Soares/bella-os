@@ -24,8 +24,12 @@ Hoje uma sessão de caixa aberta (M13) nunca fecha — não existe `POST /v1/cas
 2. Fechar com divergência → `cash_divergences` gravada com o valor exato da diferença, sessão fecha mesmo assim (divergência é registrada, não bloqueia o fechamento).
 3. Sangria/suprimento entra na conta do `expected`; pagamento após a sessão fechada → `CASH_SESSION_CLOSED`; negativo de permissão (`cash.close`/`cash.movement`).
 
-### Gate de Plano (a responder no início da execução do M14)
-A preencher no início da implementação.
+### Gate de Plano (respondido no início da execução do M14)
+1. **Schema novo em `packages/db/src/schema/billing.ts`** (mesmo arquivo do M13): `cashMovements` (`type` em `withdrawal/deposit/adjustment` — `adjustment` reservado no `CHECK` mas **não exposto pela API neste milestone**, YAGNI: sem caso de uso real ainda; a API só aceita `withdrawal`/`deposit`), `cashDivergences` (`reason` nullable, reservado para quando existir uma tela de "reconhecer divergência" — não setável pela API do M14).
+2. **`expected` por forma de pagamento é derivado, nunca armazenado separadamente**: soma de `payments` confirmados da sessão por `method` + `opening_float_cents` (só em `cash`) + `cash_movements` (`deposit` soma, `withdrawal` subtrai). Calculado sob demanda em `closeCashSession`, não em uma tabela de cache — a mesma fonte de verdade (`payments`) que o M13 já decidiu não duplicar.
+3. **`POST /close` é idempotente por reconstrução, não por bloqueio**: depois que a sessão fecha, `payments`/`cash_movements` não podem mais mudar (ambos checam `status === 'open'` antes de gravar, mesmo padrão `CASH_SESSION_CLOSED`), então recalcular `expected`/`counted`/divergência numa sessão já fechada sempre dá a mesma resposta — uma segunda chamada a `close` só NÃO insere `cash_divergences` de novo (checagem de `session.status` antes do insert), mas devolve o mesmo resumo.
+4. **Divergência é sempre registrada quando `counted ≠ expected`, nunca ajustada** (`PRODUCT_CONTEXT.md §6`, princípio 3) — inclusive método com atividade esperada que o operador esqueceu de contar (`counted` ausente no corpo = 0, e isso vira divergência visível, não um erro nem um valor escondido).
+5. **`recordCashMovement`/`closeCashSession` recebem `:id` da sessão de caixa na URL** (não "a sessão atual") — mesma forma de outras rotas que operam sobre um recurso específico; a rota valida que aquela sessão pertence ao tenant e está `open` antes de qualquer escrita.
 
 ## Próximos milestones (resumo; detalhes em `ROADMAP.md`)
 M15 divisão de conta e Golden Journey completa (fim da Fase D).

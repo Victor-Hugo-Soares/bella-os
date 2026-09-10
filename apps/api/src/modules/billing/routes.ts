@@ -3,6 +3,8 @@ import type { z } from 'zod';
 import type { Db } from '@bella/db';
 import {
   applyDiscountSchema,
+  cashMovementSchema,
+  closeCashSessionSchema,
   createPaymentSchema,
   openCashSessionSchema,
   voidPaymentSchema,
@@ -12,9 +14,11 @@ import type { Auth } from '../identity/auth';
 import { requireAnySession, requirePermission } from '../identity/require-permission';
 import {
   applyDiscount,
+  closeCashSession,
   getBill,
   getCurrentCashSession,
   openCashSession,
+  recordCashMovement,
   recordPayment,
   voidPayment,
 } from './service';
@@ -142,6 +146,41 @@ export async function billingRoutes(app: FastifyInstance, deps: BillingRoutesDep
         body.reason,
       );
       return { payment };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/v1/cash-sessions/:id/movements',
+    { preHandler: requirePermission(db, auth, 'cash.movement') },
+    async (request, reply) => {
+      const actor = request.actor!;
+      const body = parseOrThrow(cashMovementSchema, request.body);
+      const movement = await recordCashMovement(
+        db,
+        actor.tenantId,
+        request.params.id,
+        { type: 'user', userId: actor.userId },
+        body,
+      );
+      reply.status(201);
+      return { movement };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/v1/cash-sessions/:id/close',
+    { preHandler: requirePermission(db, auth, 'cash.close') },
+    async (request) => {
+      const actor = request.actor!;
+      const body = parseOrThrow(closeCashSessionSchema, request.body);
+      const summary = await closeCashSession(
+        db,
+        actor.tenantId,
+        request.params.id,
+        { type: 'user', userId: actor.userId },
+        body,
+      );
+      return { summary };
     },
   );
 }

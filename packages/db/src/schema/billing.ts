@@ -16,13 +16,16 @@ import { users } from './identity';
 import { tabs } from './tables';
 
 /**
- * Caixa e pagamentos (DOMAIN_MODEL.md §1.6, M13). Tabelas de negócio normais: RLS por
- * tenant (ADR-021), sem exceção — diferente de `devices`/`guests` (ADR-025), nenhuma
- * delas precisa resolver identidade antes do tenant ser conhecido.
+ * Caixa e pagamentos (DOMAIN_MODEL.md §1.6, M13/M14). Tabelas de negócio normais: RLS
+ * por tenant (ADR-021), sem exceção — diferente de `devices`/`guests` (ADR-025),
+ * nenhuma delas precisa resolver identidade antes do tenant ser conhecido.
  *
- * **Escopo do M13** (ACTIVE_PLAN.md): um `cash_register` por tenant, provisionado no
- * seed (mesmo padrão de `tenant_settings`); fechamento de sessão com contagem/
- * divergência e `cash_movements` (sangria/suprimento) ficam para o M14.
+ * **Escopo do M13**: um `cash_register` por tenant, provisionado no seed (mesmo padrão
+ * de `tenant_settings`). **Escopo do M14**: `cashMovements` (sangria/suprimento —
+ * `adjustment` reservado no `CHECK`, sem endpoint ainda, YAGNI) e `cashDivergences`
+ * (gravada só quando `counted ≠ expected` no fechamento, nunca ajustada em silêncio).
+ * `expected` por forma de pagamento é sempre derivado de `payments`+`cashMovements` sob
+ * demanda — nunca armazenado à parte (ver correção de 2026-09-10 em `DOMAIN_MODEL.md §1.6`).
  */
 
 export const cashRegisters = pgTable(
@@ -110,6 +113,65 @@ export const payments = pgTable(
     ),
     check('payments_status_check', sql`${t.status} in ('confirmed', 'voided')`),
     check('payments_amount_cents_check', sql`${t.amountCents} > 0`),
+    tenantIsolationPolicy(t.tenantId),
+  ],
+).enableRLS();
+
+export const cashMovements = pgTable(
+  'cash_movements',
+  {
+    id: idColumn(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    cashSessionId: uuid('cash_session_id')
+      .notNull()
+      .references(() => cashSessions.id, { onDelete: 'restrict' }),
+    type: text('type').notNull(),
+    method: text('method').notNull(),
+    amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+    reason: text('reason').notNull(),
+    byUserId: uuid('by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    check('cash_movements_type_check', sql`${t.type} in ('withdrawal', 'deposit', 'adjustment')`),
+    check(
+      'cash_movements_method_check',
+      sql`${t.method} in ('cash', 'debit', 'credit', 'pix', 'voucher', 'other')`,
+    ),
+    check('cash_movements_amount_cents_check', sql`${t.amountCents} > 0`),
+    tenantIsolationPolicy(t.tenantId),
+  ],
+).enableRLS();
+
+export const cashDivergences = pgTable(
+  'cash_divergences',
+  {
+    id: idColumn(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    cashSessionId: uuid('cash_session_id')
+      .notNull()
+      .references(() => cashSessions.id, { onDelete: 'restrict' }),
+    method: text('method').notNull(),
+    expectedCents: bigint('expected_cents', { mode: 'number' }).notNull(),
+    countedCents: bigint('counted_cents', { mode: 'number' }).notNull(),
+    differenceCents: bigint('difference_cents', { mode: 'number' }).notNull(),
+    reason: text('reason'),
+    acknowledgedBy: uuid('acknowledged_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    ...timestamps,
+  },
+  (t) => [
+    check(
+      'cash_divergences_method_check',
+      sql`${t.method} in ('cash', 'debit', 'credit', 'pix', 'voucher', 'other')`,
+    ),
     tenantIsolationPolicy(t.tenantId),
   ],
 ).enableRLS();
