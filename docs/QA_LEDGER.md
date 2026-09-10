@@ -451,5 +451,8 @@ Frentes:
 ### 2026-09-10 — M13 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
 Todos verdes no monorepo inteiro (testes de integração exigem Postgres real — não disponível localmente, ENV-1 — rodam na CI). Migration `0010_glossy_hulk.sql` gerada e verificada (`drizzle-kit check`).
 
+### 2026-09-10 — M13 — Regressão pega pela CI (regra 3 do CLAUDE.md) — corrigida
+Primeira rodada de CI: 1 dos 104 testes de integração falhou (`pagamento maior que o saldo → 409 OVERPAYMENT`). Diagnóstico: o teste assumia saldo `11000` (itens + taxa de serviço já travada) numa comanda onde a PRIMEIRA ação era o próprio pagamento rejeitado — mas o lock-in automático da taxa (feito por `computeBill` dentro da mesma transação do pagamento) é revertido junto com o resto quando `OVERPAYMENT` é lançado (uma transação rejeitada não deixa nenhum efeito colateral, nem os que ela mesma tentou criar). Não era bug de produção — era o teste assumindo um saldo que nunca tinha sido de fato commitado. Corrigido: o teste agora chama `GET /bill` primeiro (estabelece e commita o saldo real de `11000`), só then tenta o pagamento que excede e confirma que nada muda. Retestado — verde.
+
 ### 2026-09-10 — M13 — Gate Git — PENDENTE
 Branch `claude/m13-cash-payments` pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.

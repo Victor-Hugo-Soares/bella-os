@@ -325,10 +325,19 @@ describe('overpayment e concorrência', () => {
   it('pagamento maior que o saldo → 409 OVERPAYMENT, nada gravado', async () => {
     const setup = await createTabWithOrder();
     const ownerCookie = await login(ownerEmail);
+    const headers = { cookie: ownerCookie, 'x-tenant-id': bellaTenantId };
+
+    // Estabelece o saldo real primeiro (trava a taxa de serviço, M12) — a tentativa de
+    // overpayment abaixo roda inteira dentro de UMA transação que é revertida ao
+    // rejeitar (inclusive um eventual lock-in de taxa que ela própria tentasse fazer),
+    // então "nada gravado" só é uma afirmação verificável contra um saldo já existente.
+    await app.inject({ method: 'GET', url: `/v1/tabs/${setup.tabId}/bill`, headers });
+    expect(await tabBalance(setup.tabId)).toBe(11_000);
+
     const res = await app.inject({
       method: 'POST',
       url: `/v1/tabs/${setup.tabId}/payments`,
-      headers: { cookie: ownerCookie, 'x-tenant-id': bellaTenantId, 'idempotency-key': newId() },
+      headers: { ...headers, 'idempotency-key': newId() },
       payload: { method: 'credit', amountCents: 50_000 },
     });
     expect(res.statusCode, res.body).toBe(409);
