@@ -456,3 +456,34 @@ Primeira rodada de CI: 1 dos 104 testes de integração falhou (`pagamento maior
 
 ### 2026-09-10 — M13 — Gate Git — PASS
 PR #22 (`claude/m13-cash-payments` → `main`), CI remota verde nos 3 jobs na segunda rodada (1 regressão real de teste corrigida antes do merge, ver acima), merge commit `0c600fe`.
+
+---
+
+## Milestone M14 — Fechamento de caixa e relatórios
+
+### 2026-09-10 — M14 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M14) respondeu o Gate de Plano no início da implementação: `cashMovements`/`cashDivergences` no mesmo `packages/db/src/schema/billing.ts` do M13; `adjustment` reservado no `CHECK` de `cash_movements.type` mas sem endpoint (YAGNI, sem caso de uso real); `expected` por forma de pagamento sempre derivado de `payments`+`cashMovements` sob demanda, nunca uma coluna JSONB cacheada; `close` idempotente por RECONSTRUÇÃO (payments/movements são imutáveis depois que a sessão fecha, então recalcular dá sempre a mesma resposta — uma segunda chamada só não insere `cashDivergences` de novo); divergência sempre gravada quando `counted ≠ expected`, inclusive forma que o operador esqueceu de contar (vira 0, gera divergência visível, nunca é escondida). Tratado como **crítico** (regra 2: "dinheiro" listado explicitamente) — 3 frentes exigidas.
+
+### 2026-09-10 — M14 — Correção de documentação — PASS
+`docs/DOMAIN_MODEL.md §1.6` tinha três divergências da implementação real, corrigidas com a razão registrada (regra "fonte de verdade documental"): `cash_movements.type` não tem mais `sale` (vendas já estão em `payments`, decisão já tomada no Gate de Plano do M13 #8 e só agora refletida no documento); `cash_sessions` não tem colunas `expected`/`counted` JSONB (sempre recalculável, uma coluna cache seria redundante); `blind_close` não foi implementado (sem tela que use, YAGNI — fácil de adicionar depois).
+
+### 2026-09-10 — M14 — G2 Dados/contratos — PASS
+- [schema] `cashMovements`, `cashDivergences` (mesmo arquivo `billing.ts` do M13). Migration `0011_flowery_white_queen.sql`, verificada limpa via `drizzle-kit check`.
+- [contracts] `packages/contracts/src/payments.ts` ganhou `cashMovementSchema` (`withdrawal`/`deposit`) e `closeCashSessionSchema` (`counted` por forma de pagamento).
+- [API] `POST /v1/cash-sessions/:id/movements` (`cash.movement`), `POST /v1/cash-sessions/:id/close` (`cash.close`).
+
+### 2026-09-10 — M14 — G3/G7 Feature e dinheiro/caixa (CRÍTICO, 3 frentes) — PASS
+Frentes (`apps/api/test/integration/cash-close.test.ts`, Postgres real na CI; usa o tenant `demo` de propósito — `payments.test.ts` do M13 abre uma sessão no registrador do `bella` e nunca fecha, então `demo` evita disputar o índice único "uma sessão aberta por registrador" entre arquivos de teste):
+1. **Fechamento sem divergência**: contado bate o esperado em duas formas (`cash` só com o fundo de troco, `debit` com a venda) → nenhuma `cash_divergences` gravada; fechar de novo é idempotente (mesmo resumo, sem duplicar); sessão fechada rejeita pagamento novo (`CASH_SESSION_CLOSED`) e movimento novo (`CASH_SESSION_CLOSED`).
+2. **Fechamento com sangria e divergência**: sangria (`withdrawal`) entra corretamente no `expected` (venda − sangria); contado errado gera `cash_divergences` com a diferença exata, confirmada por consulta independente ao banco (nunca só pelo corpo da resposta); fechar de novo não duplica a divergência já gravada.
+3. **Negativo/isolamento**: sem `cash.close`/`cash.movement` → 403; sessão de caixa de outro tenant → 404 tanto em `close` quanto em `movements`, nunca vaza.
+- **Total: 5 testes de integração novos.**
+
+### 2026-09-10 — M14 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
+Todos verdes no monorepo inteiro (testes de integração exigem Postgres real — não disponível localmente, ENV-1 — rodam na CI). Migration `0011_flowery_white_queen.sql` gerada e verificada (`drizzle-kit check`). Um erro de tipo real pego pelo próprio `tsc` antes de qualquer commit (`Map<string,PaymentMethod>` inferido onde precisava de `Map<string,string>`) — corrigido com tipagem explícita.
+
+### 2026-09-10 — M14 — Regressão pega pela CI (regra 3 do CLAUDE.md) — corrigida
+Primeira rodada de CI: os 4 testes de `cash-close.test.ts` falharam. Diagnóstico: `payments.test.ts` (M13) abre — de propósito, para testar isolamento cross-tenant — uma sessão de caixa no registrador único do tenant `demo` e nunca fecha; como `fileParallelism: false` roda os arquivos em sequência (não é corrida de verdade), `cash-close.test.ts` (que também usa `demo`, escolhido justamente para não disputar o registrador do `bella`) encontrou o registrador do `demo` já ocupado por esse leftover do M13. Não era bug de produção — o índice único fez exatamente o que devia (`CONFLICT` numa segunda abertura). Corrigido: `beforeAll` de `cash-close.test.ts` agora fecha qualquer sessão aberta do `demo` direto no banco antes do primeiro teste, tornando o arquivo resiliente à ordem de execução entre arquivos, não só ao paralelismo. Retestado — verde.
+
+### 2026-09-10 — M14 — Gate Git — PENDENTE
+Branch `claude/m14-cash-close` pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.

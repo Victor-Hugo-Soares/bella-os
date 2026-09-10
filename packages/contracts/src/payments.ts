@@ -39,3 +39,33 @@ export const voidPaymentSchema = z.object({
   reason: z.string().min(1).max(500),
 });
 export type VoidPaymentInput = z.infer<typeof voidPaymentSchema>;
+
+/**
+ * `POST /v1/cash-sessions/:id/movements` (M14) — sangria ou suprimento. `adjustment`
+ * está reservado no `CHECK` do banco mas não tem caso de uso real ainda, então não
+ * entra aqui (YAGNI, `ACTIVE_PLAN.md` Gate de Plano do M14 #1).
+ */
+export const cashMovementSchema = z.object({
+  type: z.enum(['withdrawal', 'deposit']),
+  method: paymentMethodSchema,
+  amountCents: z.number().int().min(1),
+  reason: z.string().min(1).max(500),
+});
+export type CashMovementInput = z.infer<typeof cashMovementSchema>;
+
+/**
+ * `POST /v1/cash-sessions/:id/close` (M14) — contado por forma de pagamento. Forma sem
+ * entrada aqui é tratada como contado 0 pelo serviço (vira divergência visível se havia
+ * algo esperado naquela forma, nunca um valor escondido).
+ */
+export const closeCashSessionSchema = z.object({
+  counted: z
+    .array(
+      z.object({
+        method: paymentMethodSchema,
+        amountCents: z.number().int().min(0),
+      }),
+    )
+    .min(1),
+});
+export type CloseCashSessionInput = z.infer<typeof closeCashSessionSchema>;
