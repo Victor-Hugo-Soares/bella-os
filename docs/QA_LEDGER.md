@@ -667,4 +667,5 @@ PR #30 (`claude/m23-kds-reskin` → `main`), CI remota verde nos 4 jobs de prime
 ### 2026-09-11 — M24 — `pnpm lint`/`typecheck`/`build` — PASS
 Rodados na raiz do monorepo (mesmo comando da CI), verdes. Busca ampla confirmou zero `rounded-md border border-border bg-surface` (padrão antigo de card) e zero `oklch(` fora do único uso decorativo já justificado, restantes no admin inteiro.
 
-### 2026-09-11 — M24 — Gate Git — PENDENTE
+### 2026-09-11 — M24 — Gate Git — PASS
+PR #31 (`claude/m24-admin-reskin-p1` → `main`), merge commit `3abbf6f`. **Nota real**: primeira rodada de CI falhou no job `lint · format · typecheck · unit` — não era lint, era `pnpm format` (prettier --check) reprovando `service-requests/page.tsx`; eu tinha rodado só `pnpm lint`/`typecheck`/`build` localmente, sem `pnpm format`/`pnpm check` completo. Corrigido com `pnpm format:fix` + novo commit; segunda rodada verde nos 4 jobs.

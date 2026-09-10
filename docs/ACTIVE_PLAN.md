@@ -2,7 +2,7 @@
 
 > Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.6/§4 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M21 (fundação), M22 (cliente) e M23 (KDS) estão mergeados em `main` (PR #28 commit `4f8940b`; PR #29 commit `6da6ed2`; PR #30 commit `9e5478f`, todos CI verde de primeira). M24 (admin, parte 1 — re-skin das telas existentes) em execução.
+> M21–M24 (fundação, cliente, KDS, admin parte 1 — re-skin) estão mergeados em `main` (PR #28 `4f8940b`, PR #29 `6da6ed2`, PR #30 `9e5478f`, PR #31 `3abbf6f`). Fecha a parte "re-skin visual" do handoff de design nas 3 superfícies. M25 (admin, parte 2 — comandas/caixa/relatório) em execução.
 
 ## Nova frente: handoff de design (Claude Design → produto real)
 
@@ -41,68 +41,100 @@ radius, sombra — não é achismo visual):
    banner de conexão já construído no M20).
 4. **M24 — Admin, parte 1**: re-skin visual das telas existentes (dashboard,
    catálogo, dispositivos, chamados, pedido pela equipe, mesas/áreas, login).
-5. **M25+ — Admin, parte 2**: construir o que só existe como API hoje —
-   comandas abertas, fechar comanda/pagamento, abrir/fechar caixa, relatório
-   do dia, equipe/permissões, configurações. Envolve dinheiro/comanda/caixa
-   (regra 2 do `CLAUDE.md`: 3 frentes de teste, não 2) — decidir o corte de
-   telas por milestone ao chegar lá, provavelmente mais de um.
+5. **M25 — Admin, parte 2a (comandas/caixa/relatório)**: construir UI para
+   API que já existe desde M13–M16 — comandas abertas, fechar comanda
+   (descontos/pagamentos/fechamento), abrir/fechar sessão de caixa
+   (sangria/suprimento), relatório do dia. Puramente "tela nova para API
+   existente", sem lógica de negócio nova no backend.
+6. **M26+ — Admin, parte 2b (equipe/permissões, configurações)**: **backend
+   novo, não só UI** — levantado ao planejar o M25 que não existe NENHUM
+   endpoint pra gerenciar staff/papéis (`users.manage`/`roles.manage` só
+   reservados em `permissions.ts`, sem rota) nem configurações de tenant
+   (`settings.manage` idem). Maior, decidir o corte ao chegar lá.
 
-## Milestone atual: **M24 — Admin, parte 1 (re-skin visual)**
+## Milestone atual: **M25 — Admin, parte 2a (comandas/caixa/relatório)**
 
-### O que já existe
-9 páginas (`(admin)/admin/{dashboard,login,devices,service-requests,staff-order,
-tables,tables/areas,catalog,catalog/categories,catalog/products,catalog/stations}`)
-todas anteriores ao M21 — ainda usam `rounded-md`, `border-border` sem
-`-strong`, sem a sombra sutil do design novo (`shadow-[0_8px_24px_rgba(0,0,0,.03)]`),
-e `login/page.tsx` tem 2 resquícios `oklch(...)` hardcoded do tema antigo. Não
-existe um shell/layout compartilhado único para todo o admin — `catalog/layout.tsx`
-e `tables/layout.tsx` são dois shells locais (header + tab-nav) estruturalmente
-iguais; dashboard/login/devices/service-requests/staff-order montam o próprio
-cabeçalho inline, sem componente compartilhado. `resource-crud.tsx` é usado por
-categories/stations (CRUD genérico) — corrigir esse componente uma vez cobre
-duas páginas de uma vez.
+### API já existente (confirmada lendo `apps/api/src/modules`, sem lógica nova)
+- **Comandas**: `GET /v1/tabs/open` (`manage`), `GET /v1/tabs/:id/bill`
+  (qualquer staff), `GET /v1/tabs/:id/split?parts=N` (informativo).
+- **Fechar comanda**: `POST /v1/tabs/:id/discounts` (`discounts.apply`, union
+  `{kind:'percentage',bps,reason}` OU `{kind:'fixed',amountCents,reason}`);
+  `POST /v1/tabs/:id/payments` (`payments.record`, **exige
+  `Idempotency-Key`**, `tenderedCents` só aceito/obrigatório se
+  `method==='cash'`); `POST /v1/payments/:id/void` (`payments.void`);
+  `POST /v1/tabs/:id/close` (`tabs.close`, idempotente, 409 se saldo > 0).
+- **Caixa**: `POST /v1/cash-sessions/open` (`cash.open`, um registrador por
+  tenant); `GET /v1/cash-sessions/current`; `POST
+  /v1/cash-sessions/:id/movements` (`cash.movement`, sangria/suprimento);
+  `POST /v1/cash-sessions/:id/close` (`cash.close`, `counted` por forma de
+  pagamento, forma omitida = contado 0, divergência nunca escondida).
+- **Relatório**: `GET /v1/reports/daily?from=&to=` (`reports.view`, ISO
+  explícito — sem cálculo de "dia operacional"/timezone, a UI decide o
+  intervalo, ex. hoje 00:00–agora local).
 
 ### Resultado esperado
-1. Todos os cards/containers ganham `rounded-lg` (13px) + a sombra sutil do
-   design system, substituindo `rounded-md`/sem sombra.
-2. Bordas viram `border-border-strong` onde hoje é `border-border` genérico
-   (mesmo padrão usado no re-skin do cliente/KDS).
-3. Os 2 resquícios `oklch(...)` hardcoded em `login/page.tsx` viram tokens
-   (`--border`/equivalente) — não pode sobrar cor não-tokenizada, o `--brand`
-   branco-label deixaria de funcionar ali se um tenant trocasse a cor.
-4. `resource-crud.tsx` corrigido primeiro (maior alavancagem — cobre
-   categories + stations de uma vez), depois os 2 shells (`catalog`/`tables`
-   layout — cobre a navegação em abas de 4 páginas), depois as 6 páginas com
-   cabeçalho próprio (dashboard, login, devices, service-requests, staff-order,
-   products — a maior individualmente, tem tabela/formulário próprios).
-5. Sem mudança de lógica/API em nenhuma tela — puramente troca de classe
-   utilitária de token, mesmo escopo do M22/M23.
+1. **Tela "Comandas abertas"** (`/admin/tabs`): lista de comandas abertas
+   (`GET /v1/tabs/open`), cada uma abre um detalhe com a conta
+   (`GET /v1/tabs/:id/bill`) e ações de fechar.
+2. **Fluxo de fechamento**: aplicar desconto (opcional), registrar
+   pagamento(s) — múltiplas formas por comanda é caso real (parte cartão,
+   parte pix) — com `Idempotency-Key` gerado por tentativa de clique (não por
+   render, pra permitir novo pagamento após um erro sem reusar a chave de uma
+   tentativa falha), UI de troco só quando `method==='cash'`, fechar comanda
+   quando saldo chegar a 0.
+3. **Tela "Caixa"** (`/admin/cash`): abrir sessão (valor de abertura),
+   registrar sangria/suprimento, ver sessão atual, fechar com contagem por
+   forma de pagamento — divergência exibida claramente (não escondida, mesmo
+   padrão do backend).
+4. **Tela "Relatório do dia"** (`/admin/reports`): intervalo padrão "hoje"
+   (00:00 local até agora), faturamento/ticket médio/mais vendidos/cancelamentos
+   e descontos por operador.
+5. Estilo: mesmo design system das telas já re-skinadas no M24 (`rounded-lg`
+   13px + sombra sutil pra cards, `rounded-md` 7px pra controles, números
+   monetários com `.font-mono-tabular`).
 
-### Riscos
-- **Volume de arquivos (13) aumenta a chance de esquecer um resquício antigo**
-  — verificar ao final com uma busca por `rounded-md` e `oklch(` dentro de
-  `apps/web/src/app/(admin)` e `apps/web/src/components/catalog` pra garantir
-  que não sobrou nada, não confiar só na lista inicial.
+### Riscos (dinheiro/comanda/caixa — regra 2 do `CLAUDE.md`: 3 frentes, não 2)
+- **`Idempotency-Key` reusada por engano** entre tentativas de pagamento
+  causaria um pagamento "fantasma" nunca gravado (a segunda tentativa
+  retornaria o resultado cacheado da primeira, que pode ter falhado por outro
+  motivo) — gerar a chave nova a cada submit, nunca por render/mount.
+- **Troco exibido quando não é dinheiro** — UI precisa esconder o campo
+  `tenderedCents` pra qualquer `method !== 'cash'`, replicando exatamente a
+  regra do backend, não só "parece certo visualmente".
+- **Timezone do relatório "hoje"** — calcular o intervalo local do
+  navegador é aceitável (mesma decisão consciente do M16: sem biblioteca de
+  timezone testada), mas testar perto da virada de dia não é escopo — só
+  confirmar que bate com o relógio local do teste.
 
-### Testes (2 frentes — normal, é UI sem mutação de dinheiro)
-1. Visual/browser real: login, dashboard, catálogo (3 sub-telas), dispositivos,
-   chamados, pedido pela equipe, mesas (2 sub-telas) — confirmando via
-   `getComputedStyle` que não sobrou `oklch(` nem radius antigo, com fixture
-   fake de staff logado (sem Postgres local — ENV-1).
-2. Regressão: fluxos de CRUD (criar/editar categoria, produto, estação; criar
-   dispositivo) continuam funcionando ponta a ponta depois do re-skin.
+### Testes (3 frentes — dinheiro/comanda/caixa, regra 2 do `CLAUDE.md`)
+1. Visual/browser real com fixture fake: comandas abertas, abrir detalhe,
+   aplicar desconto, registrar pagamento parcial (parte cartão + parte
+   dinheiro com troco), fechar comanda; abrir/fechar caixa com divergência
+   proposital; relatório do dia com dados de exemplo.
+2. Verificação independente do contrato: confirmar contra o código real da
+   API (não só a memória do que foi lido na sondagem) que os campos
+   enviados pela UI batem exatamente com o que cada rota espera — igual ao
+   que já foi feito nas sondagens de M13/M14.
+3. Regressão de idempotência: reenviar a mesma ação de pagamento (dois
+   cliques rápidos, chave igual) não duplica cobrança — testado de verdade,
+   não só lido no código do backend.
 
-### Gate de Plano (respondido no início da execução do M24)
-1. **Ordem de execução por alavancagem**: `resource-crud.tsx` → shells
-   (`catalog`/`tables` layout) → páginas standalone — não por ordem alfabética
-   de arquivo, pra reduzir retrabalho (arrumar o componente compartilhado uma
-   vez em vez de repetir o mesmo ajuste em cada página que o usa).
-2. **Zero mudança de lógica/contrato de API** — é reskin puro, mesmo tipo de
-   escopo do M22 (cliente) e M23 (KDS).
-3. **Fecha com busca ampla por `rounded-md`/`oklch(` no admin inteiro antes de
-   declarar pronto** — não confiar só na lista de arquivos levantada no início.
+### Gate de Plano (respondido no início da execução do M25)
+1. **Só as 4 áreas com API pronta** (comandas, fechar comanda, caixa,
+   relatório) — equipe/permissões e configurações ficam pra depois, exigem
+   endpoint novo, fora do escopo "tela para API existente" deste milestone.
+2. **`Idempotency-Key` gerada por tentativa de submit**, nunca por
+   montagem de componente — evita reuso acidental entre cliques.
+3. **UI de troco condicional a `method === 'cash'`**, replicando a regra do
+   backend exatamente, não uma aproximação visual.
+4. **Sem seletor de intervalo customizado no relatório nesta entrega** — só
+   "hoje" (00:00 local até agora); intervalo arbitrário fica pra quando
+   houver demanda real (mesma decisão do M16).
 
 ---
+
+## Histórico — M24 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
+Re-skin visual das 9 telas de admin existentes: `resource-crud.tsx` corrigido primeiro (cobre categorias/estações/áreas de uma vez), depois 8 containers de card individuais (dashboard, produtos, dispositivos, chamados, pedido pela equipe, mesas) de `rounded-md border border-border` pra `rounded-lg border border-border-strong` + sombra sutil. Inputs/botões mantidos em `rounded-md` (7px, já correto). `login/page.tsx` já usava tokens do M21 corretamente. **Achado real de processo**: primeira rodada de CI falhou não por lint, mas por `pnpm format` (prettier) — eu tinha rodado só lint/typecheck/build local, sem `pnpm check` completo; corrigido com `pnpm format:fix` e um segundo commit.
 
 ## Histórico — M23 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
 `.kds-theme` aplicado em toda a tela do KDS (pareamento + board, não só board); corrigido bug real de token herdado por engano do M21 (`--card-warm` do tema escuro era igual a `--surface`) — adicionado par `--card-warm`/`--card-warm-foreground` correto (`#faf6f1`/`#302923`) pros botões de ação "Iniciar preparo"/"Marcar pronto"; raio `rounded-md` → `rounded-lg`. Achado feito proativamente (revisando a própria extração de cores do mockup antes de tocar na tela), não via bug de teste visual. Zero mudança de lógica de realtime/watchdog (M20 intacto).
