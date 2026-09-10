@@ -254,3 +254,22 @@ Frentes (`apps/api/test/integration/tables.test.ts`, Postgres real na CI, `bella
 
 ### 2026-09-09 — M6 — `pnpm check` + build do monorepo — PASS
 `pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo as novas rotas de `apps/web` (`/admin/tables`, `/admin/tables/areas`) geradas no build de produção. **Limitação registrada:** sem Postgres local (ENV-1), a UI de mesas não foi testada visualmente ao vivo neste milestone (só via build + CI) — mesma limitação já documentada desde o M4.
+
+### 2026-09-09 — M6 — Gate Git — PASS
+PR #9 (`claude/m6-tables` → `main`), CI remota verde nos 3 jobs (60/60 testes de integração), merge commit `e323755`. Execução hands-off a partir daqui (pedido do Victor): merge após CI verde não espera mais confirmação.
+
+---
+
+## Milestone M7 — Cardápio do cliente + carrinho (fim da Fase B)
+
+### 2026-09-10 — M7 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M7) registrou dois cortes de escopo antes de codar: SSE/realtime (`catalog.updated` ao vivo, é infraestrutura do M9) e modificadores na tela do cliente (M5 não tem UI de modificador nem no admin ainda). Gate de Plano respondido no próprio arquivo.
+
+### 2026-09-10 — M7 — G2/G3 Dados e feature — PASS
+- [schema/API] `GET /public/:tenantSlug/catalog` (novo, `apps/api/src/modules/catalog/service.ts`/`routes.ts`): só categoria ativa + produto ativo E disponível; roda dentro de `withTenant()` normalmente (tenant resolvido pelo slug, não é caso de exceção de RLS). Helper `resolveTenantBySlug` extraído para `apps/api/src/lib/tenant-slug.ts` e reaproveitado do M6 (`tables/service.ts`), evitando duplicar a mesma lógica de resolução de tenant por slug em dois módulos.
+- [integração — Postgres real, CI] `public-catalog.test.ts` (3 testes): produto ativo+disponível aparece; produto esgotado (`isAvailable=false`) e produto desativado (`isActive=false`) nunca aparecem, mesmo criados no mesmo tenant/categoria; produto de outro tenant nunca aparece na resposta; slug inexistente devolve 404.
+- [frontend] `apps/web/src/lib/cart.ts`: carrinho Zustand + `persist` (`zustand@5.0.15`, versão confirmada via npm antes de instalar — regra 12), um store por `tableSessionId` (cacheado em módulo, nunca recriado a cada render); `Idempotency-Key` gerada ao montar o carrinho (primeiro item), nunca enviada neste milestone (não existe envio de pedido ainda). `apps/web/src/components/customer/customer-menu.tsx`: abre a sessão de mesa (M6) e busca o catálogo público ao carregar; categorias/produtos agrupados e ordenados por `sortOrder`; botão de adicionar vira contador +/- quando o item já está no carrinho; CTA fixo no rodapé com contagem e total (só prévia — servidor recalcula tudo no M8).
+- [E2E manual real, browser] Testado com um servidor Node mínimo simulando as duas rotas públicas (mesmo padrão do M4/M5 para telas sem Postgres local disponível, ENV-1): sessão abre, cardápio carrega agrupado por categoria, adicionar item atualiza o contador E o CTA do rodapé em tempo real, total calculado corretamente (24,90 + 54,90 = 79,80, conferido), **carrinho sobrevive a um reload completo da página** (prova real de que o `persist` do Zustand está gravando/lendo o localStorage, não só "parece que sim"). Testado em mobile (375px) e desktop.
+
+### 2026-09-10 — M7 — `pnpm check` + build do monorepo — PASS
+`pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo a rota dinâmica `/{tenant}/m/{table}` (antes placeholder do M4, agora com conteúdo real) gerada no build de produção.

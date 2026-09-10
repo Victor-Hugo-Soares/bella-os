@@ -9,6 +9,7 @@ import type {
   UpdateTableInput,
 } from '@bella/contracts';
 import { AppError } from '../../lib/errors';
+import { resolveTenantBySlug } from '../../lib/tenant-slug';
 
 const QR_CODE_MAX_ATTEMPTS = 5;
 
@@ -125,24 +126,6 @@ export interface OpenSessionResult {
   guestToken: string;
 }
 
-/**
- * Resolve o tenant pelo slug (tabela global `tenants`, sem RLS — ARCHITECTURE.md §4)
- * ANTES de qualquer `withTenant()`. Nunca vaza se o slug existe ou não de forma
- * diferente de "mesa não encontrada" (mesma mensagem genérica de segurança usada em
- * `require-permission.ts` para tenant/membership).
- */
-async function resolveTenantBySlug(db: Db, tenantSlug: string): Promise<string> {
-  const rows = await withoutTenant(db, (tx) =>
-    tx
-      .select({ id: schema.tenants.id })
-      .from(schema.tenants)
-      .where(eq(schema.tenants.slug, tenantSlug)),
-  );
-  const tenant = rows[0];
-  if (!tenant) throw new AppError('NOT_FOUND', 'Mesa não encontrada.');
-  return tenant.id;
-}
-
 interface TableRow {
   id: string;
   label: string;
@@ -252,7 +235,7 @@ export async function openTableSession(
   tenantSlug: string,
   qrCode: string,
 ): Promise<OpenSessionResult> {
-  const tenantId = await resolveTenantBySlug(db, tenantSlug);
+  const tenantId = await resolveTenantBySlug(db, tenantSlug, 'Mesa não encontrada.');
   const table = await findActiveTableByCode(db, tenantId, qrCode);
   try {
     return await tryCreateSession(db, tenantId, table);

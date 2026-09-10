@@ -16,6 +16,7 @@ import {
   updateStationSchema,
 } from '@bella/contracts';
 import { AppError } from '../../lib/errors';
+import { resolveTenantBySlug } from '../../lib/tenant-slug';
 import type { Auth } from '../identity/auth';
 import { requirePermission } from '../identity/require-permission';
 import * as catalog from './service';
@@ -206,4 +207,14 @@ export async function catalogRoutes(app: FastifyInstance, deps: CatalogRoutesDep
       return { unlinked: true };
     },
   );
+
+  // Cardápio público (M7) — sem sessão de staff, só o que está ativo e disponível.
+  app.get<{ Params: { tenantSlug: string } }>('/public/:tenantSlug/catalog', async (request) => {
+    const tenantId = await resolveTenantBySlug(
+      db,
+      request.params.tenantSlug,
+      'Restaurante não encontrado.',
+    );
+    return catalog.listPublicCatalog(db, tenantId);
+  });
 }
