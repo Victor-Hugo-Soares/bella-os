@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { createDb, schema, withoutTenant, withTenant, type DbHandle } from '@bella/db';
 import { runMigrations } from '@bella/db/migrate';
 import { seed, SEED_TENANTS } from '@bella/db/seed';
@@ -173,6 +173,19 @@ beforeAll(async () => {
       tx.insert(schema.memberships).values({ id: newId(), userId, tenantId: demoTenantId, roleId }),
     );
   }
+
+  // Defesa contra ordem de execução entre arquivos de teste: `payments.test.ts` (M13)
+  // abre — e nunca fecha, propositalmente, para testar isolamento cross-tenant — uma
+  // sessão de caixa no registrador único do `demo`. Fecha aqui direto no banco (não é
+  // o que este arquivo testa) para garantir um registrador livre antes de qualquer teste.
+  await withTenant(ownerDb.db, demoTenantId, (tx) =>
+    tx
+      .update(schema.cashSessions)
+      .set({ status: 'closed', closedAt: new Date() })
+      .where(
+        and(eq(schema.cashSessions.tenantId, demoTenantId), eq(schema.cashSessions.status, 'open')),
+      ),
+  );
 });
 
 afterAll(async () => {

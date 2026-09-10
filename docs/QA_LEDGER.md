@@ -482,5 +482,8 @@ Frentes (`apps/api/test/integration/cash-close.test.ts`, Postgres real na CI; us
 ### 2026-09-10 — M14 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
 Todos verdes no monorepo inteiro (testes de integração exigem Postgres real — não disponível localmente, ENV-1 — rodam na CI). Migration `0011_flowery_white_queen.sql` gerada e verificada (`drizzle-kit check`). Um erro de tipo real pego pelo próprio `tsc` antes de qualquer commit (`Map<string,PaymentMethod>` inferido onde precisava de `Map<string,string>`) — corrigido com tipagem explícita.
 
+### 2026-09-10 — M14 — Regressão pega pela CI (regra 3 do CLAUDE.md) — corrigida
+Primeira rodada de CI: os 4 testes de `cash-close.test.ts` falharam. Diagnóstico: `payments.test.ts` (M13) abre — de propósito, para testar isolamento cross-tenant — uma sessão de caixa no registrador único do tenant `demo` e nunca fecha; como `fileParallelism: false` roda os arquivos em sequência (não é corrida de verdade), `cash-close.test.ts` (que também usa `demo`, escolhido justamente para não disputar o registrador do `bella`) encontrou o registrador do `demo` já ocupado por esse leftover do M13. Não era bug de produção — o índice único fez exatamente o que devia (`CONFLICT` numa segunda abertura). Corrigido: `beforeAll` de `cash-close.test.ts` agora fecha qualquer sessão aberta do `demo` direto no banco antes do primeiro teste, tornando o arquivo resiliente à ordem de execução entre arquivos, não só ao paralelismo. Retestado — verde.
+
 ### 2026-09-10 — M14 — Gate Git — PENDENTE
 Branch `claude/m14-cash-close` pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.
