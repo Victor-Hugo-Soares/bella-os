@@ -84,7 +84,7 @@ export default function DashboardPage() {
       <header className="flex items-center justify-between border-b border-border px-6 py-4">
         <div className="flex items-center gap-2.5 text-foreground">
           <BellaMark className="h-6 w-6" />
-          <span className="font-display text-sm font-semibold tracking-tight">Bella OS</span>
+          <span className="text-sm font-semibold tracking-tight">Bella OS</span>
           <span className="ml-1 rounded-full border border-border-strong px-2 py-0.5 text-[11px] tracking-wide text-muted-foreground uppercase">
             Bella III
           </span>
@@ -103,7 +103,7 @@ export default function DashboardPage() {
         <p className="text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
           Conta
         </p>
-        <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground">
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
           {state.me.user.name}
         </h1>
 

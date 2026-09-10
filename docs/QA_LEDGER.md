@@ -588,3 +588,25 @@ Todos verdes no monorepo inteiro.
 
 ### 2026-09-10 — M20 — Gate Git — PASS
 PR #27 (`claude/m20-reconnection-hardening` → `main`), CI remota verde nos 4 jobs de primeira, merge commit `52d39d2`. **Fecha a lista de prioridades que o Victor pediu para a Fase E (relatório → backup/restore → resiliência de conexão).**
+
+---
+
+## Handoff de design (Claude Design → produto) — M21 — Fundação do novo design system
+
+### 2026-09-11 — M21 — Confirmação do Victor
+Victor desenhou as 20 telas do produto num canvas do Claude Design e aprovou a direção — diferente da que estava em `FRONTEND_GUIDELINES.md`. Pediu handoff completo: implementar tudo, ele confere no final. Tokens extraídos do DOM real do mockup aprovado via `getComputedStyle` (cor, fonte, raio, sombra), não estimados visualmente.
+
+### 2026-09-11 — M21 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` respondeu o Gate de Plano: tema claro vira padrão de `:root` (cliente+admin), tema escuro do KDS vira um tema PRÓPRIO fixo via classe `.kds-theme` (nunca "dark mode" alternável do usuário nem compartilhado com o resto do sistema); uma família tipográfica só (Switzer, remove Schibsted Grotesk e JetBrains Mono de `next/font/google`); `--brand` continua sendo o ponto de override white-label, só o valor default muda; cores semânticas recalibradas pro fundo claro; `FRONTEND_GUIDELINES.md` reescrito por completo, não remendado.
+
+### 2026-09-11 — M21 — G5 UX (fundação, sem re-skin de tela ainda) — PASS
+- `apps/web/src/app/globals.css`: tokens reescritos (hex/rgb extraídos do mockup, não oklch), `.kds-theme` como tema escuro fixo e isolado, `.font-mono-tabular` migrado pra pilha monoespaçada do sistema (sem depender de webfont).
+- `apps/web/src/app/layout.tsx`: para de carregar Schibsted Grotesk/JetBrains Mono via `next/font/google` — só Switzer (Fontshare) continua.
+- Classe utilitária `font-display` removida de todos os componentes que a usavam (8 arquivos) — não existe mais no `@theme inline`, ficaria quebrada silenciosamente se não fosse removida.
+- **[visual, browser real]** `/admin/login`: fundo `#f2f2f2`, texto `#252525`, fonte Switzer, marca `#bd3027` confirmados via `getComputedStyle` — batem exatamente com o mockup. `/kds` e `/bella/m/TESTE`: sem quebra de layout, sem texto ilegível — ainda no visual "antigo" (claro, não o escuro quente do KDS) porque o re-skin de cada superfície é dos próximos milestones (M22/M23/M24), não deste.
+
+### 2026-09-11 — M21 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
+Todos verdes no monorepo inteiro.
+
+### 2026-09-11 — M21 — Gate Git — PENDENTE
+Branch pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.

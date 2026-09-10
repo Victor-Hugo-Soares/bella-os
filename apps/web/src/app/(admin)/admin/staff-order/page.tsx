@@ -112,7 +112,7 @@ function StaffOrderContent() {
         <p className="text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
           Salão
         </p>
-        <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground">
+        <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
           Pedido pela equipe
         </h1>
       </header>

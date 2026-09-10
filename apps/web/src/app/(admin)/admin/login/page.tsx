@@ -58,11 +58,11 @@ export default function LoginPage() {
 
         <div className="relative flex items-center gap-2.5 text-foreground">
           <BellaMark className="h-8 w-8" />
-          <span className="font-display text-lg font-semibold tracking-tight">Bella OS</span>
+          <span className="text-lg font-semibold tracking-tight">Bella OS</span>
         </div>
 
         <div className="relative max-w-md">
-          <h1 className="font-display text-3xl leading-tight font-semibold tracking-tight text-foreground">
+          <h1 className="text-3xl leading-tight font-semibold tracking-tight text-foreground">
             Uma operação inteira, do QR da mesa ao fechamento do caixa.
           </h1>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
@@ -80,12 +80,10 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center gap-2.5 text-foreground lg:hidden">
             <BellaMark className="h-7 w-7" />
-            <span className="font-display text-base font-semibold tracking-tight">Bella OS</span>
+            <span className="text-base font-semibold tracking-tight">Bella OS</span>
           </div>
 
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-foreground">
-            Entrar
-          </h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">Entrar</h2>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Use seu email e senha de acesso da equipe.
           </p>

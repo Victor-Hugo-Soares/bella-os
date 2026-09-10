@@ -1,52 +1,64 @@
 # Bella OS — Diretrizes de Frontend
 
-> Cópia operacional do padrão de estética do Victor (validado em projeto anterior) adaptada ao Bella OS. O repositório precisa ser autossuficiente: Sonnet segue **este** arquivo. Aplica-se a `apps/web`. **Não** se aplica a PDFs (QR Codes, relatórios impressos), que têm layout próprio simples em papel.
+> Cópia operacional do padrão de estética atual do Bella OS. O repositório precisa ser autossuficiente: Sonnet segue **este** arquivo. Aplica-se a `apps/web`. **Não** se aplica a PDFs (QR Codes, relatórios impressos), que têm layout próprio simples em papel.
+>
+> **Reescrito em 2026-09-11 (M21):** o Victor desenhou as telas num canvas do Claude Design (`bella-os-artboards.vsoareslins452.chatgpt.site`) e aprovou aquela direção visual — diferente da que estava documentada aqui antes. Os tokens abaixo foram extraídos do DOM real do mockup aprovado (`getComputedStyle`, não estimados visualmente), então este documento reflete o que o produto **é** agora, não uma reinterpretação.
 
 ## 1. Alvo estético
-"Produto SaaS premium feito por estúdio" (referências: Linear, Vercel, Raycast, Claude desktop). Calmo, denso na medida, profissional. **Proibido:** Inter/Geist como display, roxo/violeta genérico, emoji como ícone, shadcn cru, gradientes neon, glassmorphism, tom "🚀 Vamos lá!".
+"Produto de restaurante premium, calmo e confiável" — não um app de delivery genérico, não um template gerado por IA. Referência direta: o próprio canvas aprovado do Claude Design (link acima). **Proibido:** emoji como ícone, shadcn cru sem customização, gradientes neon, glassmorphism, tom "🚀 Vamos lá!".
 
-Teste final de toda tela: "parece um produto que uma empresa séria pagaria caro, ou parece template de IA?" Tem que ser o primeiro.
+Teste final de toda tela: "parece o mockup que o Victor aprovou, ou parece outra coisa"? Comparar direto com o canvas antes de considerar uma tela pronta.
 
-## 2. Fontes (duas origens)
-- Display/títulos: **Schibsted Grotesk** 400–700 (Google Fonts). `letter-spacing: -0.025em`.
-- Corpo/UI: **Switzer** 400–600 (Fontshare).
-- Mono (IDs, valores, códigos de mesa): **JetBrains Mono** 400–500 (Google Fonts).
+## 2. Fonte — uma família só
+**Switzer** (Fontshare), pesos 400 (corpo) / 500–600 (títulos e ênfase), para TUDO — corpo e títulos. Não existe família de display separada nem fonte monoespaçada de marca; números tabulares (dinheiro, IDs) usam a pilha monoespaçada do sistema (`ui-monospace`), sem carregar webfont extra.
 
 ```html
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap">
 ```
-Verificar no console: `document.fonts.check('600 16px "Schibsted Grotesk"')` deve ser `true` para as três famílias. Gotcha Tailwind v4: sob `@theme inline`, `var(--font-display)` em `@layer base` resolve vazio → usar o stack literal ou as classes `font-display`/`font-sans`/`font-mono`.
+Verificar no console: `document.fonts.check('600 16px "Switzer"')` deve ser `true`. Títulos (`h1`–`h4`) usam `font-weight: 600` e `letter-spacing: -0.02em`, aplicado globalmente em `@layer base` — nunca precisa de uma classe `font-display` separada (essa classe não existe mais desde o M21; se aparecer em algum componente antigo, é resíduo a remover).
 
-## 3. Cor (oklch, dark por padrão, `.light` disponível)
+## 3. Cor — hex/rgb (não oklch), claro por padrão
 ```
---background: oklch(16.5% .005 220);   --foreground: oklch(94% .005 220);
---surface: oklch(20.5% .006 220);      --elevated: oklch(23.5% .007 220);
---card: var(--surface);                --muted-foreground: oklch(66% .012 220);
---brand: oklch(74% .11 184);           --brand-foreground: oklch(15% .01 200);
---brand-soft: oklch(74% .11 184/.1);
---border: oklch(100% 0 0/.06);         --border-strong: oklch(100% 0 0/.12);
---input: oklch(100% 0 0/.08);          --ring: oklch(74% .11 184/.5);
---radius: .625rem;
+--background: #f2f2f2;      --foreground: #252525;
+--surface: #ffffff;         --elevated: #ffffff;
+--card: var(--surface);     --card-warm: #faf7f3;
+--muted-foreground: #686868;
+--brand: #bd3027;           --brand-hover: #a52620;    --brand-foreground: #ffffff;
+--brand-soft: rgb(189 48 39 / .1);
+--border: #e8e8e8;          --border-strong: #dddddd;
+--input: #e8e8e8;           --ring: rgb(189 48 39 / .4);
+--radius: 7px;              --radius-lg: 13px;
+--danger: #c0392b;          --success: #2f7d4f;
 ```
-Light: fundo `oklch(98.5% .003 80)`, foreground `oklch(18% .01 220)`, brand `oklch(62% .1 184)`.
-- `--brand` é **white-label**: no Bella OS vem de `tenant_settings.brand` (injetado no `<html style>` por tenant). Usar com parcimônia (botão primário, foco, ativo, marca).
-- Profundidade por camadas (background < surface < elevated) + borda sutil, não sombras coloridas.
-- Semânticas (status de ticket, formas de pagamento, categorias): âmbar `oklch(78% .16 75)`, teal `oklch(80% .13 180)`, verde `oklch(74% .18 145)`, azul `oklch(65% .18 250)`, laranja `oklch(72% .18 50)`, roxo `oklch(66% .22 305)`, rosa `oklch(70% .22 350)`. Fundos suaves via `color-mix(in oklch, var(--x) 14%, transparent)`. Nunca concatenar alpha em hex.
+- `--brand` continua sendo o ponto de override **white-label** (`ARCHITECTURE.md` — Bella é tenant/configuração, nunca `if` no núcleo): só o valor default mudou para o vermelho acima, a variável em si segue sobrescrevível por tenant.
+- Cards com raio `--radius-lg` (13px), sombra muito sutil `0 8px 24px rgba(0,0,0,.03)`, borda `1px solid var(--border-strong)`. `--card-warm` é a variante bege usada em blocos de destaque (ex.: aviso "você está na Mesa 08").
+- Controles/botões usam `--radius` (7px), menor que o raio dos cards.
+- Profundidade por camada sutil (fundo `#f2f2f2` < card branco) + borda, nunca sombra colorida.
+
+### KDS — a ÚNICA superfície com tema escuro, e é um tema fixo, não alternável
+```
+.kds-theme {
+  --background: #202020;      --foreground: #fffaf4;
+  --surface: #2d2a28;         --elevated: #322f2c;
+  --card: var(--surface);     --muted-foreground: #b8b0a8;
+  --border: rgb(255 250 244 / .08);  --border-strong: rgb(255 250 244 / .14);
+  --danger: #e05a4a;          --success: #4fae7a;
+}
+```
+Aplicar via classe `.kds-theme` na raiz da tela do KDS. Cliente e admin **não** têm modo escuro — não estava no mockup aprovado, não é uma decisão a inventar por conta própria.
 
 ## 4. Forma, ícones, texto, movimento
-Raio ~10px consistente; ícones **Lucide** stroke 1.5; labels de seção em caixa-alta `text-[11px] tracking-widest muted-foreground`; números financeiros com peso e tabulares (`font-variant-numeric: tabular-nums`); motion 150–300 ms; skeletons, não spinners gigantes; idioma pt-BR, tom direto.
+Ícones **Lucide** stroke 1.5; labels de seção em caixa-alta `text-[11px] tracking-widest muted-foreground`; números financeiros com peso e tabulares (`.font-mono-tabular`, `font-variant-numeric: tabular-nums`, pilha `ui-monospace`); motion 150–300 ms; skeletons, não spinners gigantes; idioma pt-BR, tom direto.
 
 ## 5. Adaptações por superfície do Bella OS
 | Superfície | Regras extras |
 |-----------|---------------|
 | **Cliente (mobile)** | uma mão, alvo de toque ≥ 44 px, CTA fixo no rodapé ("Ver carrinho · R$ 84,50"), fotos em proporção fixa com placeholder, texto legível a 16 px, sem hover-only, funciona em 360 px |
-| **KDS** | legível a 1,5 m: fonte de item ≥ 20 px, observações em destaque, cor de urgência por tempo (verde → âmbar → vermelho), botões enormes, sem scroll horizontal, tema pode ser claro de alto contraste se a inspeção em tela real provar melhor (ADR-014) |
-| **Admin/caixa** | densidade alta, tabelas com números tabulares, atalhos de teclado no caixa, teclado numérico para PIN e valores, confirmações explícitas em ações financeiras |
+| **KDS** | tema escuro fixo (`.kds-theme`, §3), legível a 1,5 m: fonte de item ≥ 20 px, observações em destaque, cor de urgência por tempo (verde → âmbar → vermelho), botões enormes, sem scroll horizontal |
+| **Admin/caixa** | tema claro, densidade alta, tabelas com números tabulares, atalhos de teclado no caixa, teclado numérico para PIN e valores, confirmações explícitas em ações financeiras |
 
 ## 6. Stack de UI
 React + Tailwind v4 (tokens via `@theme inline`) + shadcn/ui como base fortemente customizada + TanStack Query + Lucide. Estado servidor via Query; carrinho via Zustand com `persist`. Sem `style={{}}` inline para layout (diferente do projeto QIOSK).
 
 ## 7. Estados obrigatórios em toda tela
-Loading (skeleton), vazio (mensagem + ação), erro (mensagem humana + `request_id` discreto + tentar novamente), sucesso; em superfícies operacionais, banner de **sem conexão** com timestamp do último dado válido.
+Loading (skeleton), vazio (mensagem + ação), erro (mensagem humana + `request_id` discreto + tentar novamente), sucesso; em superfícies operacionais, banner de **sem conexão** com timestamp do último dado válido (padrão já implementado no KDS, M20 — reaproveitar o mesmo componente/lógica em outras telas real-time futuras).

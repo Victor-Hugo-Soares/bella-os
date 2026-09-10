@@ -208,7 +208,7 @@ function ScreenHeader({ title, onBack }: { title: string; onBack: () => void }) 
       >
         <ArrowLeft className="h-5 w-5" strokeWidth={1.5} />
       </button>
-      <h1 className="font-display text-lg font-semibold tracking-tight text-foreground">{title}</h1>
+      <h1 className="text-lg font-semibold tracking-tight text-foreground">{title}</h1>
     </header>
   );
 }
@@ -232,7 +232,7 @@ function MenuList({
         if (items.length === 0) return null;
         return (
           <section key={category.id}>
-            <h2 className="mb-3 font-display text-lg font-semibold tracking-tight text-foreground">
+            <h2 className="mb-3 text-lg font-semibold tracking-tight text-foreground">
               {category.name}
             </h2>
             <div className="flex flex-col gap-3">

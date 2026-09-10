@@ -21,9 +21,7 @@ function CatalogShell({ children }: { children: React.ReactNode }) {
         <p className="text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
           Catálogo
         </p>
-        <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground">
-          Cardápio
-        </h1>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground">Cardápio</h1>
         {tenant.status === 'ok' ? (
           <p className="mt-1 text-sm text-muted-foreground">{tenant.tenant.name}</p>
         ) : null}
