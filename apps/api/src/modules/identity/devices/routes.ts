@@ -22,6 +22,7 @@ export interface DeviceRoutesDeps {
 const createPairingCodeBody = z.object({
   deviceKind: z.enum(['kds', 'cashier', 'floor', 'admin']),
   deviceName: z.string().min(1).max(100),
+  stationIds: z.array(z.uuid()).optional(),
 });
 
 const exchangeBody = z.object({
@@ -65,6 +66,7 @@ export async function deviceRoutes(app: FastifyInstance, deps: DeviceRoutesDeps)
         createdByMembershipId: actor.membershipId,
         deviceKind: body.deviceKind,
         deviceName: body.deviceName,
+        ...(body.stationIds ? { stationIds: body.stationIds } : {}),
       });
       return { code: result.code, expiresAt: result.expiresAt.toISOString() };
     },

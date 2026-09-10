@@ -19,6 +19,8 @@ export interface CreatePairingCodeInput {
   createdByMembershipId: string;
   deviceKind: 'kds' | 'cashier' | 'floor' | 'admin';
   deviceName: string;
+  /** Só usado quando `deviceKind === 'kds'` (M9) — estações que o KDS vai atender. */
+  stationIds?: string[];
 }
 
 export interface PairingCode {
@@ -48,6 +50,7 @@ export async function createPairingCode(
           code,
           deviceKind: input.deviceKind,
           deviceName: input.deviceName,
+          stationIds: input.stationIds ?? null,
           expiresAt,
           createdByMembershipId: input.createdByMembershipId,
         }),
@@ -103,6 +106,7 @@ export async function exchangePairingCode(db: Db, code: string): Promise<Exchang
       name: pairing.deviceName,
       kind: pairing.deviceKind,
       tokenHash: hashDeviceToken(token),
+      stationIds: pairing.stationIds,
     });
 
     return { token, deviceId, tenantId: pairing.tenantId };
@@ -153,6 +157,7 @@ export interface DeviceActor {
   deviceId: string;
   tenantId: string;
   kind: string;
+  stationIds: string[];
 }
 
 /**
@@ -184,7 +189,13 @@ export async function resolveDeviceActor(
       .where(eq(schema.devices.id, device.id)),
   );
 
-  return { type: 'device', deviceId: device.id, tenantId: device.tenantId, kind: device.kind };
+  return {
+    type: 'device',
+    deviceId: device.id,
+    tenantId: device.tenantId,
+    kind: device.kind,
+    stationIds: Array.isArray(device.stationIds) ? (device.stationIds as string[]) : [],
+  };
 }
 
 const PIN_MAX_ATTEMPTS = 5;

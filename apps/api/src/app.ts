@@ -13,6 +13,8 @@ import { tenantsRoutes } from './modules/identity/tenants-routes';
 import { catalogRoutes } from './modules/catalog/routes';
 import { tablesRoutes } from './modules/tables/routes';
 import { orderRoutes } from './modules/orders/routes';
+import { kdsRoutes } from './modules/kds/routes';
+import { realtimeRoutes } from './modules/realtime/routes';
 
 // Versão lida do package.json em tempo de build/execução (tsup embute o JSON).
 import packageJson from '../package.json' with { type: 'json' };
@@ -94,6 +96,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       webOriginIsHttps: config.NODE_ENV === 'production',
     });
     await app.register(orderRoutes, { db: db.db, auth });
+    await app.register(kdsRoutes, { db: db.db });
+    await app.register(realtimeRoutes, { db: db.db });
   }
 
   return app;
