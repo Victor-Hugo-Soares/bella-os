@@ -712,8 +712,8 @@ Pedido direto do Victor, em resposta a um levantamento completo de prontidão de
 ### 2026-09-10 — M-PROD1 — Execução real (frente 2 de 3) — PASS
 `pnpm build` (tsup) + `node dist/index.js`: com `NODE_ENV=production` e nenhuma das 3 vars definidas, a API **recusa subir** com erro explícito citando as 3 (testado rodando o binário de verdade, não só lendo o código). Com `NODE_ENV=development`, sobe normal; `curl -i /health` confirmou de verdade os cabeçalhos de segurança do `@fastify/helmet` (`X-Frame-Options`, `Strict-Transport-Security`, `X-Content-Type-Options` etc.) e os headers do `@fastify/rate-limit` (`x-ratelimit-limit: 300`, `x-ratelimit-remaining`) presentes na resposta real.
 
-### 2026-09-10 — M-PROD1 — CI (frente 3 de 3, independente) — PENDENTE (roda no PR)
-O job `integração (Postgres 16)` da CI exercita `buildApp()` com `rate-limit`/`helmet` registrados de verdade contra toda a suíte de integração — qualquer quebra de rota causada pelos plugins novos aparece ali, frente independente da execução manual acima.
+### 2026-09-10 — M-PROD1 — CI (frente 3 de 3, independente) — PASS
+O job `integração (Postgres 16)` exercitou `buildApp()` com `rate-limit`/`helmet` registrados de verdade contra toda a suíte de integração, verde. **Achado real pego pela própria CI**: o job `build + smoke da API compilada` quebrou na primeira rodada — ele roda `NODE_ENV=production` mas não definia `APP_DATABASE_URL`/`BETTER_AUTH_SECRET`/`WEB_ORIGIN`, que passaram a ser obrigatórias. Corrigido passando valores sintaticamente válidos (mas não-funcionais — o smoke não toca banco de verdade, `pg.Pool` conecta sob demanda e `/health` não consulta o banco) nas env vars do step `smoke` em `.github/workflows/ci.yml`. Segunda rodada verde nos 4 jobs.
 
 ### 2026-09-10 — M-PROD1 — Entregáveis
 - `apps/api/src/config.ts`: validação de produção (`.superRefine`).
@@ -725,4 +725,5 @@ O job `integração (Postgres 16)` da CI exercita `buildApp()` com `rate-limit`/
 ### 2026-09-10 — M-PROD1 — `pnpm check`/`pnpm build` (root) — PASS
 Verdes.
 
-### 2026-09-10 — M-PROD1 — Gate Git — PENDENTE
+### 2026-09-10 — M-PROD1 — Gate Git — PASS
+PR #33 (`claude/m-prod1-production-readiness` → `main`), merge commit `5b23c02`. Primeira rodada de CI falhou (ver frente 3 acima); corrigida com commit `21d6073` na mesma branch; segunda rodada verde nos 4 jobs.
