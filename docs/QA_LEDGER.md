@@ -693,4 +693,5 @@ Dois pagamentos consecutivos na mesma comanda (R$ 55 e R$ 20) cada um incremento
 ### 2026-09-11 — M25 — `pnpm lint`/`format`/`typecheck`/`test`/`build` — PASS
 `pnpm check` completo (root) verde. `pnpm build` do `apps/web` gera as 3 rotas novas (`/admin/tabs`, `/admin/cash`, `/admin/reports`) sem erro.
 
-### 2026-09-11 — M25 — Gate Git — PENDENTE
+### 2026-09-11 — M25 — Gate Git — PASS
+PR #32 (`claude/m25-admin-cash-reports` → `main`), CI remota verde nos 4 jobs de primeira, merge commit `049ad82`.

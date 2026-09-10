@@ -2,7 +2,7 @@
 
 > Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.6/§4 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M21–M24 (fundação, cliente, KDS, admin parte 1 — re-skin) estão mergeados em `main` (PR #28 `4f8940b`, PR #29 `6da6ed2`, PR #30 `9e5478f`, PR #31 `3abbf6f`). Fecha a parte "re-skin visual" do handoff de design nas 3 superfícies. M25 (admin, parte 2 — comandas/caixa/relatório) em execução.
+> M21–M25 estão mergeados em `main` (PR #28 `4f8940b`, PR #29 `6da6ed2`, PR #30 `9e5478f`, PR #31 `3abbf6f`, PR #32 `049ad82`, todos CI verde de primeira). **Fecha o handoff de design completo nas 3 superfícies** (re-skin) **+ as telas de comandas/caixa/relatório que só existiam como API**. Falta só M26 (equipe/permissões, configurações) — precisa de backend novo, não é reskin; Gate de Plano ainda não respondido, ver seção abaixo.
 
 ## Nova frente: handoff de design (Claude Design → produto real)
 
@@ -52,84 +52,41 @@ radius, sombra — não é achismo visual):
    reservados em `permissions.ts`, sem rota) nem configurações de tenant
    (`settings.manage` idem). Maior, decidir o corte ao chegar lá.
 
-## Milestone atual: **M25 — Admin, parte 2a (comandas/caixa/relatório)**
+## Milestone atual: **M26 — Equipe/permissões e configurações (backend novo)**
 
-### API já existente (confirmada lendo `apps/api/src/modules`, sem lógica nova)
-- **Comandas**: `GET /v1/tabs/open` (`manage`), `GET /v1/tabs/:id/bill`
-  (qualquer staff), `GET /v1/tabs/:id/split?parts=N` (informativo).
-- **Fechar comanda**: `POST /v1/tabs/:id/discounts` (`discounts.apply`, union
-  `{kind:'percentage',bps,reason}` OU `{kind:'fixed',amountCents,reason}`);
-  `POST /v1/tabs/:id/payments` (`payments.record`, **exige
-  `Idempotency-Key`**, `tenderedCents` só aceito/obrigatório se
-  `method==='cash'`); `POST /v1/payments/:id/void` (`payments.void`);
-  `POST /v1/tabs/:id/close` (`tabs.close`, idempotente, 409 se saldo > 0).
-- **Caixa**: `POST /v1/cash-sessions/open` (`cash.open`, um registrador por
-  tenant); `GET /v1/cash-sessions/current`; `POST
-  /v1/cash-sessions/:id/movements` (`cash.movement`, sangria/suprimento);
-  `POST /v1/cash-sessions/:id/close` (`cash.close`, `counted` por forma de
-  pagamento, forma omitida = contado 0, divergência nunca escondida).
-- **Relatório**: `GET /v1/reports/daily?from=&to=` (`reports.view`, ISO
-  explícito — sem cálculo de "dia operacional"/timezone, a UI decide o
-  intervalo, ex. hoje 00:00–agora local).
+**Ainda sem Gate de Plano respondido — não implementar sem antes decidir isto.**
+Diferente de M21–M25 (tudo "tela nova pra API que já existia"), o M26 precisa
+de domínio novo: hoje NÃO existe nenhuma rota para gerenciar staff/papéis
+(`users.manage`/`roles.manage` só reservados em `packages/domain/src/permissions.ts`,
+nunca referenciados por uma rota) nem para configurações de tenant
+(`settings.manage` idem; `tenant_settings` existe como tabela — usada por
+`computeBill` pro `service_fee_bps` — mas sem endpoint de leitura/edição).
 
-### Resultado esperado
-1. **Tela "Comandas abertas"** (`/admin/tabs`): lista de comandas abertas
-   (`GET /v1/tabs/open`), cada uma abre um detalhe com a conta
-   (`GET /v1/tabs/:id/bill`) e ações de fechar.
-2. **Fluxo de fechamento**: aplicar desconto (opcional), registrar
-   pagamento(s) — múltiplas formas por comanda é caso real (parte cartão,
-   parte pix) — com `Idempotency-Key` gerado por tentativa de clique (não por
-   render, pra permitir novo pagamento após um erro sem reusar a chave de uma
-   tentativa falha), UI de troco só quando `method==='cash'`, fechar comanda
-   quando saldo chegar a 0.
-3. **Tela "Caixa"** (`/admin/cash`): abrir sessão (valor de abertura),
-   registrar sangria/suprimento, ver sessão atual, fechar com contagem por
-   forma de pagamento — divergência exibida claramente (não escondida, mesmo
-   padrão do backend).
-4. **Tela "Relatório do dia"** (`/admin/reports`): intervalo padrão "hoje"
-   (00:00 local até agora), faturamento/ticket médio/mais vendidos/cancelamentos
-   e descontos por operador.
-5. Estilo: mesmo design system das telas já re-skinadas no M24 (`rounded-lg`
-   13px + sombra sutil pra cards, `rounded-md` 7px pra controles, números
-   monetários com `.font-mono-tabular`).
+Perguntas em aberto antes de poder escrever um Gate de Plano de verdade
+(decisão de produto, não só técnica — considerar perguntar ao Victor se a
+resposta não for óbvia pelo mockup aprovado):
+1. **Equipe**: convite por email + senha temporária, ou só o dono cria conta
+   direto com senha definida na hora (mais simples, mas não é o padrão
+   "convite" de produtos SaaS)? Melhor consultar Better Auth (`docs/ARCHITECTURE.md`)
+   pra saber qual fluxo já é suportado sem trabalho extra de auth.
+2. **Papéis**: existe um conjunto fixo de papéis (dono/gerente/caixa/garçom/
+   cozinha) ou é permissão granular por usuário? `permissions.ts` já define
+   chaves individuais — decidir se a UI expõe papéis pré-montados (mais simples
+   pro Victor operar) ou checkboxes por permissão (mais flexível, mais
+   arriscado de errar).
+3. **Configurações**: quais campos de `tenant_settings` já existem hoje no
+   schema (`service_fee_bps` confirmado; conferir o resto lendo
+   `packages/db/src/schema/billing.ts` antes de supor) — a tela só deve expor
+   o que já tem campo real, não inventar configuração nova sem pedido do
+   Victor.
+4. **Conferir o canvas do Claude Design aprovado** — as 12 telas de
+   "Admin·Caixa" citadas no início do handoff provavelmente incluem
+   equipe/configurações; olhar lá antes de desenhar do zero.
 
-### Riscos (dinheiro/comanda/caixa — regra 2 do `CLAUDE.md`: 3 frentes, não 2)
-- **`Idempotency-Key` reusada por engano** entre tentativas de pagamento
-  causaria um pagamento "fantasma" nunca gravado (a segunda tentativa
-  retornaria o resultado cacheado da primeira, que pode ter falhado por outro
-  motivo) — gerar a chave nova a cada submit, nunca por render/mount.
-- **Troco exibido quando não é dinheiro** — UI precisa esconder o campo
-  `tenderedCents` pra qualquer `method !== 'cash'`, replicando exatamente a
-  regra do backend, não só "parece certo visualmente".
-- **Timezone do relatório "hoje"** — calcular o intervalo local do
-  navegador é aceitável (mesma decisão consciente do M16: sem biblioteca de
-  timezone testada), mas testar perto da virada de dia não é escopo — só
-  confirmar que bate com o relógio local do teste.
+## Histórico — M25 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
+Três telas novas consumindo API 100% pronta desde M12–M16 (zero lógica nova no backend): `/admin/tabs` (lista de comandas → detalhe com desconto/pagamento multi-forma/troco condicional/fechamento), `/admin/cash` (abrir/fechar sessão + sangria/suprimento, divergência sempre visível), `/admin/reports` (métricas do dia, intervalo fixo "hoje"). Contratos verificados linha a linha contra `routes.ts`/`service.ts`/`packages/contracts` antes de implementar (regra 12 do `CLAUDE.md`). `Idempotency-Key` gerada por tentativa de submit. Testado com fixture fake stateful reproduzindo o comportamento real (desconto reduz saldo, pagamento parcial com troco calculado certo, fechamento só habilita com saldo 0); achado real na própria fixture (CORS sem `idempotency-key` no allow-headers, não um bug do produto).
 
-### Testes (3 frentes — dinheiro/comanda/caixa, regra 2 do `CLAUDE.md`)
-1. Visual/browser real com fixture fake: comandas abertas, abrir detalhe,
-   aplicar desconto, registrar pagamento parcial (parte cartão + parte
-   dinheiro com troco), fechar comanda; abrir/fechar caixa com divergência
-   proposital; relatório do dia com dados de exemplo.
-2. Verificação independente do contrato: confirmar contra o código real da
-   API (não só a memória do que foi lido na sondagem) que os campos
-   enviados pela UI batem exatamente com o que cada rota espera — igual ao
-   que já foi feito nas sondagens de M13/M14.
-3. Regressão de idempotência: reenviar a mesma ação de pagamento (dois
-   cliques rápidos, chave igual) não duplica cobrança — testado de verdade,
-   não só lido no código do backend.
-
-### Gate de Plano (respondido no início da execução do M25)
-1. **Só as 4 áreas com API pronta** (comandas, fechar comanda, caixa,
-   relatório) — equipe/permissões e configurações ficam pra depois, exigem
-   endpoint novo, fora do escopo "tela para API existente" deste milestone.
-2. **`Idempotency-Key` gerada por tentativa de submit**, nunca por
-   montagem de componente — evita reuso acidental entre cliques.
-3. **UI de troco condicional a `method === 'cash'`**, replicando a regra do
-   backend exatamente, não uma aproximação visual.
-4. **Sem seletor de intervalo customizado no relatório nesta entrega** — só
-   "hoje" (00:00 local até agora); intervalo arbitrário fica pra quando
-   houver demanda real (mesma decisão do M16).
+---
 
 ---
 

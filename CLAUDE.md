@@ -46,18 +46,18 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **D completa** (M8–M15). Fase **E**: M16 (relatório do dia), M18 (backup/restore testado) e M20 (reconexão endurecida) concluídos, 2026-09-10 — **fecha a lista de prioridades que o Victor pediu explicitamente**. Victor confirmou Q7 (cozinha só tela, sem impressora — M16 "Impressão" do `ROADMAP.md` fica sem data).
-- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (16+ bugs/gaps reais entre M0–M20).
+- Fase: **D completa** (M8–M15). Fase **E** (M16/M18/M20) concluída 2026-09-10. **Nova frente 2026-09-11: handoff de design** — Victor desenhou as 20 telas do produto no Claude Design e aprovou a direção visual (diferente do dark-oklch antigo); pediu handoff completo, implementação autônoma, ele confere no final ("gostei mt mais d seu... vamos implementar e quando tiver full pronto eu verifico tudo"). **M21–M25 concluídos e mergeados** (2026-09-11): fundação do design system, re-skin das 3 superfícies (cliente/KDS/admin) + comandas/caixa/relatório do dia (telas novas pra API que já existia desde M12–M16). Detalhes: `docs/ACTIVE_PLAN.md`.
+- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (16+ bugs/gaps reais entre M0–M20). **Rodar `pnpm check` (root) antes de push, não só lint/typecheck/build isolados** — `apps/web` tem seu próprio `eslint.config.mjs` mais estrito que o da CI, e `pnpm format` (prettier) já pegou uma regressão que lint sozinho não pegava (M24).
 - **Modo de execução: hands-off desde 2026-09-10.**
-- Branch: `main`. Último commit: `52d39d2` (merge PR #27, M20). CI verde nos **4 jobs** de primeira, sem regressão.
+- Branch: `main`. Último commit: merge PR #32 (M25), `049ad82`. CI verde nos **4 jobs** de primeira em M21–M25, sem regressão.
 - **Confirmado pelo Victor (2026-09-10):** pagamento na maquininha física, ADMIN dá baixa manual, sem PSP/TEF (`docs/PRODUCT_CONTEXT.md §2` Q6). Cozinha só tela por enquanto (Q7).
 - **Lição real do M20, vale pra qualquer stream futuro:** um comentário SSE (`: texto`) é invisível ao `EventSource` do browser — nenhum handler dispara. Qualquer sinal que o cliente precise reagir tem que ser um evento nomeado de verdade.
-- Último gate aprovado: **Gate de saída da Fase D: PASS.** M16 fecha `KNOWN_ISSUES.md` R-16. M18/M20 são **G9 observabilidade/recuperação**.
-- Bloqueios: nenhum bloqueio técnico. **Sem próximo milestone óbvio sem novo pedido do Victor** — M17 (estoque/CMV) precisa de dados reais dele; o resto do M19 (relatórios avançados) não tem demanda real ainda.
+- Último gate aprovado: **M25 — Gate Git PASS** (PR #32, `049ad82`).
+- Bloqueios: nenhum bloqueio técnico. M26 (equipe/permissões + configurações) precisa de **backend novo** (endpoints não existem, só chaves de permissão reservadas) e de decisões de produto (fluxo de convite de equipe, papéis fixos vs. permissão granular, quais campos de `tenant_settings` expor) — ver perguntas em aberto em `docs/ACTIVE_PLAN.md`.
 
 ## Próximo passo exato
 
-**Sem milestone ativo.** Perguntar ao Victor o que vem a seguir — M17 (estoque/CMV, precisa de dados reais de insumos/receitas do Bella III) ou outra prioridade fora do `ROADMAP.md` original.
+**M26 — Equipe/permissões e configurações.** Gate de Plano ainda não respondido — ver as 4 perguntas em aberto na seção do M26 em `docs/ACTIVE_PLAN.md` (fluxo de convite, papéis vs. permissão granular, campos reais de `tenant_settings`, conferir o canvas do Claude Design pras 12 telas de admin) antes de desenhar schema/rotas novas.
 
 ## Arquitetura atual (resumo; detalhes em `docs/ARCHITECTURE.md`)
 
