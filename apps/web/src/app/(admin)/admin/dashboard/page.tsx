@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Clock, LogOut, Mail, UtensilsCrossed, User } from 'lucide-react';
+import { Clock, LayoutGrid, LogOut, Mail, UtensilsCrossed, User } from 'lucide-react';
 import { BellaMark } from '@/components/bella-mark';
 import { ApiError, apiFetch, authFetch } from '@/lib/api';
 
@@ -122,13 +122,22 @@ export default function DashboardPage() {
           </div>
         </dl>
 
-        <Link
-          href="/admin/catalog"
-          className="mt-8 flex w-fit items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
-        >
-          <UtensilsCrossed className="h-4 w-4" strokeWidth={1.5} />
-          Gerenciar cardápio
-        </Link>
+        <div className="mt-8 flex gap-3">
+          <Link
+            href="/admin/catalog"
+            className="flex w-fit items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
+          >
+            <UtensilsCrossed className="h-4 w-4" strokeWidth={1.5} />
+            Gerenciar cardápio
+          </Link>
+          <Link
+            href="/admin/tables"
+            className="flex w-fit items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
+          >
+            <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
+            Gerenciar mesas
+          </Link>
+        </div>
       </main>
     </div>
   );

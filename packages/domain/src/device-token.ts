@@ -19,3 +19,15 @@ export function hashDeviceToken(token: string): string {
 export function generatePairingCode(): string {
   return randomInt(0, 1_000_000).toString().padStart(6, '0');
 }
+
+/**
+ * Código de mesa (`tables.qr_code`, M6): curto (para caber numa URL amigável no QR
+ * físico) e NÃO sequencial (DOMAIN_MODEL.md §1.4) — um número de mesa sequencial
+ * deixaria fácil adivinhar/escanear mesas vizinhas alterando a URL manualmente.
+ * 6 bytes aleatórios em base64url ≈ 8 caracteres, espaço grande o suficiente para não
+ * colidir num tenant com poucas dezenas de mesas (retry em colisão, mesmo padrão de
+ * `generatePairingCode`/`createPairingCode`).
+ */
+export function generateTableCode(): string {
+  return randomBytes(6).toString('base64url');
+}

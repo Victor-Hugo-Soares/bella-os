@@ -36,6 +36,13 @@
       "when": 1788984548008,
       "tag": "0004_red_the_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788998550633,
+      "tag": "0005_lame_bloodscream",
+      "breakpoints": true
     }
   ]
 }

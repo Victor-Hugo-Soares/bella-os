@@ -227,3 +227,30 @@ Frentes (`apps/api/test/integration/catalog.test.ts`, roda contra Postgres real 
 
 ### 2026-09-09 — M5 — `pnpm check` + build do monorepo — PASS
 `pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo as novas rotas de `apps/web` (`/admin/catalog`, `/admin/catalog/{stations,categories,products}`) geradas no build de produção.
+
+---
+
+## Milestone M6 — Mesas, QR e sessão de mesa (Fase B)
+
+### 2026-09-09 — M6 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M6) escreveu o escopo antes de codar: `areas`/`tables`/`table_sessions`/`tabs`/`guests` com CRUD admin + abertura pública de sessão; `service_requests`/`table_session_transfers` fora (Fase C/M11). Gate de Plano respondido no próprio arquivo. Tratado como **crítico** (regra 2 do CLAUDE.md: sessão/tenant) — 3 frentes exigidas.
+
+### 2026-09-09 — M6 — G2 Dados/contratos — PASS
+- [schema] `packages/db/src/schema/tables.ts`: `areas`/`tables`/`table_sessions`/`tabs` com RLS por tenant normal (ADR-021). **`guests` sem RLS, de propósito** (ADR-031, estende ADR-025): resolver o cliente pelo token do cookie acontece antes de existir contexto de tenant conhecido — mesmo caso de `devices`.
+- [migração] `drizzle-kit generate`/`check` limpos; migration `0005` inspecionada: índice único parcial `table_sessions_open_per_table_key` (`WHERE status <> 'closed'`) confirmado na SQL gerada.
+- **Achado real durante a implementação (bug pego na revisão, antes da CI):** a primeira versão de `openTableSession` tentava capturar a violação do índice único parcial e continuar consultando dentro da MESMA transação — o Postgres aborta o restante de uma transação após qualquer violação de constraint até o `ROLLBACK`; qualquer comando seguinte falharia com "current transaction is aborted". Corrigido: tentar criar (`tryCreateSession`) e entrar numa sessão já aberta (`joinExistingSession`) são duas transações **separadas** — ver ADR-031.
+
+### 2026-09-09 — M6 — G3/G6 Feature, permissão e segurança (crítico, 3 frentes) — PASS
+Frentes (`apps/api/test/integration/tables.test.ts`, Postgres real na CI, `bella_app`):
+1. **Positivo/negativo de permissão:** `owner` cria área e mesa (`tables.manage`, mesa recebe `qr_code` único gerado pelo servidor); `kitchen` (sem `tables.manage`) recebe 403.
+2. **Isolamento entre tenants:** mesa criada no Bella não aparece na listagem do Demo, com um dono do Demo autenticado de verdade fazendo a consulta.
+3. **Sessão de mesa pública, ponta a ponta real:** abrir sessão a partir do `qr_code` devolve cookie `HttpOnly`/`SameSite=Lax`; `GET /public/me/table-session` com esse cookie resolve de volta o mesmo `tableSessionId` — prova que o cookie de fato autentica, não só que "a rota respondeu 200".
+4. **Manipular a URL não dá acesso indevido:** código inexistente → 404 (não vaza se o tenant existe); a mesma mesa do Bella sob o slug do Demo → 404 (mesa nunca resolvida fora do tenant dono).
+5. **Concorrência real (não simulada/sequencial):** duas requisições de abertura de sessão disparadas com `Promise.all` na mesma mesa — as duas retornam 200, ambas apontam para o MESMO `tableSessionId`, cada uma gera um `guest`/token diferente, e uma consulta independente ao banco confirma **exatamente uma** linha em `table_sessions` para aquela mesa (não duas em disputa, não um erro para a segunda).
+- **Total: 8 testes novos** em `tables.test.ts` (admin: 3; sessão pública: 5, incluindo o de concorrência).
+
+### 2026-09-09 — M6 — Escopo cortado: geração de PDF dos QR Codes — adiado, registrado
+`ACTIVE_PLAN.md` prevê PDF dos QR Codes para o Victor imprimir. Decisão: a URL da mesa (`/{tenant}/m/{qrCode}`) já aparece na tela de admin de mesas, copiável manualmente — suficiente para destravar M7 (cardápio do cliente) e para o Bella III operar com poucas mesas no piloto. Geração de PDF em lote (biblioteca a pesquisar: candidatas `pdf-lib` + alguma lib de QR) fica para um milestone/tarefa dedicada, quando o número de mesas justificar não copiar uma por uma.
+
+### 2026-09-09 — M6 — `pnpm check` + build do monorepo — PASS
+`pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo as novas rotas de `apps/web` (`/admin/tables`, `/admin/tables/areas`) geradas no build de produção. **Limitação registrada:** sem Postgres local (ENV-1), a UI de mesas não foi testada visualmente ao vivo neste milestone (só via build + CI) — mesma limitação já documentada desde o M4.
