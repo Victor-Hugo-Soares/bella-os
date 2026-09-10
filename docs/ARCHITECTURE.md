@@ -61,7 +61,7 @@ Regras entre módulos: um módulo só fala com outro pela **camada de serviço**
 | Estado no front | TanStack Query + SSE para invalidação; Zustand só para carrinho local | servidor é a verdade; carrinho é o único estado legitimamente local | Redux |
 | Auth staff | **Better Auth** (email+senha, sessões em Postgres via Drizzle) + camada própria de **dispositivo + PIN** | evita auth artesanal (risco), integra com Drizzle, permite plugins depois; PIN é regra de negócio nossa | Supabase Auth (acopla ao Supabase), Auth.js (foco em OAuth), auth 100% própria (footgun) |
 | Auth cliente | token de sessão de mesa assinado (HMAC) em cookie httpOnly, sem conta | zero atrito, LGPD mínima | login social (atrito) |
-| Realtime | **SSE** (`text/event-stream`) do `api`, canais por tenant (`station:{id}`, `table-session:{id}`, `admin`), eventos persistidos em `domain_events` com `seq` para replay | reconexão nativa do browser com `Last-Event-ID`, passa por proxies, unidirecional basta (mutações são HTTP) | WebSocket/Socket.IO (bidirecional desnecessário, mais estado), Supabase Realtime (acopla), polling puro (latência) |
+| Realtime | **SSE** (`text/event-stream`) do `api`, um canal por tenant hoje (`orders`; canais por `station:{id}`/`table-session:{id}`/`admin` são desenho futuro, §8), eventos persistidos em `domain_events` com `seq` para replay | reconexão nativa do browser com `Last-Event-ID`, passa por proxies, unidirecional basta (mutações são HTTP) | WebSocket/Socket.IO (bidirecional desnecessário, mais estado), Supabase Realtime (acopla), polling puro (latência) |
 | Fan-out multi-instância | fase 1: instância única. Fase 2: `LISTEN/NOTIFY` do Postgres para acordar SSE de outras instâncias | zero infra extra até precisar | Redis pub/sub (custo/infra a mais agora) |
 | Filas/jobs | tabela `jobs` no Postgres com `FOR UPDATE SKIP LOCKED` + worker no próprio processo `api` | uma dependência a menos; volume do restaurante é pequeno | BullMQ/Redis (quando houver mais tenants) |
 | Cache | nenhum cache distribuído. HTTP cache para imagens; TanStack Query no cliente | evitar bug de cache por tenant | Redis |
@@ -115,10 +115,11 @@ Cenários analisados (cliente envia enquanto caixa transfere mesa; dois operador
 
 ## 8. Tempo real e estimativa
 
-- Canais SSE por tenant: `station:{station_id}` (KDS), `table-session:{id}` (cliente), `floor` (salão/expedição/chamados), `admin` (painel). Autorização no handshake: token de dispositivo/sessão define quais canais pode assinar.
-- Heartbeat a cada 15 s; cliente considera "offline" após 30 s sem heartbeat e mostra banner; ao reconectar, faz `GET` de estado completo **e** replay de eventos — o estado completo vence.
-- **Polling de segurança** (a cada 20 s) no KDS mesmo com SSE, porque um pedido invisível na cozinha é o pior bug possível.
-- Estimativa: por estação, `estimated_ready_at = now + base_prep_time(produto) + carga_atual(tickets abertos na estação) × fator`; exibida como faixa (±30%) e recalculada por evento. Primeira versão usa tempos base cadastrados; calibragem por histórico é pós-MVP.
+- **Implementado hoje (M9–M20):** um único canal SSE por tenant, `orders` (`apps/api/src/modules/realtime`) — cobre pedido criado e item cancelado, o suficiente para KDS e (via reload) demais telas de staff. Autorização no handshake: token de dispositivo.
+- **Desenho futuro, não implementado:** canais separados por `station:{station_id}` (KDS filtrado por estação), `table-session:{id}` (cliente), `floor` (salão/expedição/chamados), `admin` (painel) — fica para quando uma tela real precisar de granularidade por estação/mesa em vez de recarregar tudo. Corrigido em 2026-09-10 (M20) — esta seção divergia da implementação real desde o M9, `CLAUDE.md` "fonte de verdade documental".
+- Heartbeat a cada 15s, enviado como **evento SSE nomeado** (`event: heartbeat`), não comentário — um comentário SSE é invisível ao `EventSource` do browser, nenhum handler dispara, o cliente nunca saberia que o servidor está vivo (achado real do M20). Cliente (KDS) considera "sem conexão" e mostra banner depois de 30s sem NENHUM evento (heartbeat ou de negócio) — implementado no M20 junto com um teste real de desconectar→reconectar provando que `Last-Event-ID` não perde nem duplica evento.
+- **Polling de segurança** no KDS mesmo com SSE (a cada 5s hoje, `POLL_FALLBACK_MS`), porque um pedido invisível na cozinha é o pior bug possível — continua funcionando mesmo com o SSE fora do ar, então o banner "sem conexão" é um aviso, nunca um bloqueio.
+- Estimativa: por estação, `estimated_ready_at = now + base_prep_time(produto) + carga_atual(tickets abertos na estação) × fator`; exibida como faixa (±30%) e recalculada por evento. Primeira versão usa tempos base cadastrados; calibragem por histórico é pós-MVP. **Não implementado ainda** — fica para quando o cardápio tiver tempos base reais cadastrados (Fase F).
 
 ## 9. Degradação, contingência e impressão
 
