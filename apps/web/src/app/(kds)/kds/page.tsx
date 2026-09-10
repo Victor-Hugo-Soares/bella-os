@@ -67,8 +67,10 @@ function PairingScreen({ onPaired }: { onPaired: (token: string) => void }) {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6">
-      <ChefHat className="h-10 w-10 text-foreground" strokeWidth={1.5} />
+    <main className="kds-theme flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6">
+      <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-card-warm">
+        <ChefHat className="h-7 w-7 text-card-warm-foreground" strokeWidth={1.5} />
+      </div>
       <form onSubmit={handleSubmit} className="flex w-full max-w-xs flex-col gap-4">
         <label className="text-center text-sm text-muted-foreground">
           Digite o código de pareamento gerado pelo gerente
@@ -79,7 +81,7 @@ function PairingScreen({ onPaired }: { onPaired: (token: string) => void }) {
           maxLength={6}
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          className="rounded-md border border-input bg-elevated px-4 py-3 text-center text-2xl tracking-widest text-foreground outline-none focus:ring-2 focus:ring-ring"
+          className="rounded-lg border border-input bg-elevated px-4 py-3 text-center text-2xl tracking-widest text-foreground outline-none focus:ring-2 focus:ring-ring"
         />
         {error ? (
           <p role="alert" className="text-center text-sm text-danger">
@@ -89,7 +91,7 @@ function PairingScreen({ onPaired }: { onPaired: (token: string) => void }) {
         <button
           type="submit"
           disabled={pairing}
-          className="rounded-md bg-brand px-4 py-3 text-sm font-medium text-brand-foreground disabled:opacity-60"
+          className="rounded-lg bg-brand px-4 py-3 text-sm font-medium text-brand-foreground disabled:opacity-60"
         >
           Parear
         </button>
@@ -175,7 +177,7 @@ function TicketBoard({ deviceToken }: { deviceToken: string }) {
 
   if (error) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-6">
+      <main className="kds-theme flex min-h-screen items-center justify-center bg-background px-6">
         <ConnectionBanner show={!connectionOk} />
         <p role="alert" className="flex items-center gap-2 text-lg text-danger">
           <AlertCircle className="h-6 w-6" strokeWidth={1.5} />
@@ -187,7 +189,7 @@ function TicketBoard({ deviceToken }: { deviceToken: string }) {
 
   if (!tickets) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background">
+      <main className="kds-theme flex min-h-screen items-center justify-center bg-background">
         <ConnectionBanner show={!connectionOk} />
         <div className="h-10 w-10 animate-pulse rounded-full bg-elevated" />
       </main>
@@ -196,7 +198,7 @@ function TicketBoard({ deviceToken }: { deviceToken: string }) {
 
   if (tickets.length === 0) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-6">
+      <main className="kds-theme flex min-h-screen items-center justify-center bg-background px-6">
         <ConnectionBanner show={!connectionOk} />
         <p className="text-xl text-muted-foreground">Nenhum ticket na fila.</p>
       </main>
@@ -204,11 +206,11 @@ function TicketBoard({ deviceToken }: { deviceToken: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-background p-4">
+    <main className="kds-theme min-h-screen bg-background p-4">
       <ConnectionBanner show={!connectionOk} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {tickets.map((ticket) => (
-          <div key={ticket.id} className="rounded-md border border-border-strong bg-surface p-4">
+          <div key={ticket.id} className="rounded-lg border border-border-strong bg-surface p-4">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-[13px] font-medium tracking-widest text-muted-foreground uppercase">
                 {ticket.status === 'queued'
@@ -254,25 +256,25 @@ function TicketBoard({ deviceToken }: { deviceToken: string }) {
               <button
                 type="button"
                 onClick={() => bump(ticket.id, 'start')}
-                className="flex w-full items-center justify-center gap-2 rounded-md bg-brand py-4 text-lg font-medium text-brand-foreground"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-card-warm py-4 text-lg font-medium text-card-warm-foreground"
               >
                 <Play className="h-5 w-5" strokeWidth={2} />
-                Iniciar
+                Iniciar preparo
               </button>
             ) : ticket.status === 'preparing' ? (
               <button
                 type="button"
                 onClick={() => bump(ticket.id, 'ready')}
-                className="flex w-full items-center justify-center gap-2 rounded-md bg-success py-4 text-lg font-medium text-brand-foreground"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-card-warm py-4 text-lg font-medium text-card-warm-foreground"
               >
                 <Bell className="h-5 w-5" strokeWidth={2} />
-                Pronto
+                Marcar pronto
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => bump(ticket.id, 'recall')}
-                className="w-full rounded-md border border-border-strong py-4 text-lg font-medium text-foreground"
+                className="w-full rounded-lg border border-border-strong py-4 text-lg font-medium text-foreground"
               >
                 Recall
               </button>

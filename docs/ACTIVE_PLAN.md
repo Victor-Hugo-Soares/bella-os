@@ -2,7 +2,7 @@
 
 > Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.6/§4 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M21 (fundação do novo design system) está mergeado em `main` (commit `4f8940b`, PR #28, CI verde de primeira). Tokens do handoff do Claude Design já valem em todo `apps/web` — a maioria dos componentes usa classes de token (`bg-background`, `text-foreground`, `bg-brand`...) em vez de cor fixa, então boa parte do re-skin já "aconteceu sozinha" ao trocar os tokens; falta ajustar forma/composição específica (raio de card, chips, detalhe de produto) que os tokens não cobrem.
+> M21 (fundação) e M22 (cliente) estão mergeados em `main` (PR #28 commit `4f8940b`; PR #29 commit `6da6ed2`, ambos CI verde de primeira). M23 (KDS) em execução.
 
 ## Nova frente: handoff de design (Claude Design → produto real)
 
@@ -45,66 +45,55 @@ radius, sombra — não é achismo visual):
    abrir/fechar caixa, relatório do dia, equipe/permissões, configurações.
    Provavelmente mais de um milestone — decidir o corte ao chegar lá.
 
-## Milestone atual: **M22 — Cliente (re-skin + telas que faltavam)**
-
-### O que já existe vs. o que falta
-`apps/web/src/components/customer/customer-menu.tsx` já cobre funcionalmente
-4 dos 5 artboards do mockup num componente só: cardápio (`MenuList`/
-`ProductCard`), carrinho (`CartScreen`), acompanhamento + atendimento
-(`OrdersScreen`, que já tem "chamar garçom"/"pedir a conta" — o mockup separa
-em dois artboards, aqui fica junto por afinidade funcional, decisão mantida).
-Falta o artboard **B2 — Detalhe do produto**: hoje o cliente só adiciona ao
-carrinho direto do card da lista, sem uma tela de detalhe.
+## Milestone atual: **M23 — KDS (re-skin pro tema escuro quente)**
 
 ### Resultado esperado
-1. Cards do cardápio/carrinho/pedidos com o raio/sombra corretos
-   (`rounded-radius-lg`, borda `border-strong`, sombra sutil) em vez do
-   `rounded-md` genérico atual.
-2. Cabeçalho do cardápio com o badge de marca (reaproveitar `BellaMark`, fundo
-   `bg-brand`/ícone branco em vez de contorno) + selo "Aberto" (verde,
-   `--success`) + nome do tenant — como no mockup B1.
-3. Chips de categoria fixos no topo (scroll horizontal) substituindo a lista
-   vertical de seções — cardápios reais têm dezenas de itens, navegação por
-   chip é o padrão do setor (iFood/Rappi/Goomer, ver estudo de mercado já
-   registrado na conversa).
-4. **Tela de detalhe do produto** (B2, nova): abre ao tocar no card (não no
-   botão de quantidade, que continua adicionando direto da lista); bloco de
-   imagem com placeholder (sem foto real — `catalog.ts` não tem campo de
-   imagem, escopo do M5, não é deste milestone resolver), nome, descrição,
-   preço, stepper de quantidade, botão "Adicionar ao carrinho".
-5. Sem tocar em nenhuma chamada de API nova — tudo já existe desde M7/M8/M10;
-   isto é puramente composição/visual.
+1. Raiz da tela do KDS (pareamento + board) ganha a classe `.kds-theme` — o
+   tema escuro quente vale em toda a superfície, não só no board.
+2. Correção de token: `.kds-theme` tinha `--card-warm: var(--surface)` (herdado
+   por engano do M21) — os botões de ação do mockup ("Iniciar preparo"/"Marcar
+   pronto") usam um bege claro (`#faf6f1`/`#302923`) mesmo no tema escuro, não
+   a cor escura de superfície. Corrigido em `globals.css` com
+   `--card-warm`/`--card-warm-foreground` distintos por tema.
+3. Botões de ação do ticket trocam de `bg-brand`/`bg-success` genéricos para
+   `bg-card-warm text-card-warm-foreground`, igual ao mockup. Raio dos cards e
+   botões vai de `rounded-md` pro `rounded-lg` (13px) do design system novo.
+4. Badge da tela de pareamento reaproveita o mesmo padrão de badge de marca já
+   usado no cliente (M22): ícone sobre `bg-card-warm`.
+5. Sem mudança de lógica — `TicketBoard`/pareamento/SSE/watchdog/banner de
+   conexão (M20) continuam exatamente como estão, é puramente re-skin visual.
 
 ### Riscos
-- **Placeholder de foto pode parecer "quebrado"** se for só um retângulo cinza
-  — usar um bloco com o ícone de prato/talher (Lucide) centralizado sobre
-  `--card-warm`, não um cinza genérico de "imagem faltando".
-- **Chips de categoria com scroll horizontal em 360px** — testar de verdade
-  no navegador nessa largura (`FRONTEND_GUIDELINES.md §5`), não só em 375/414.
+- **Confundir `--card-warm` do tema claro com o do tema escuro** — são valores
+  diferentes de propósito (claro: bege sobre fundo branco; escuro: bege claro
+  sobre fundo escuro, para destacar o botão de ação). Cada tema define o seu
+  dentro do próprio escopo (`:root` vs `.kds-theme`), não há token único
+  global pra isso.
 
 ### Testes (2 frentes — normal, é UI sem mutação de dinheiro)
-1. Visual/browser real: cardápio, detalhe do produto, carrinho e pedidos
-   testados em 375px width, incluindo os 4 estados (loading/vazio/erro/sucesso)
-   onde já existem.
-2. Regressão: fluxo golden path do cliente (abrir mesa → ver cardápio → abrir
-   detalhe → adicionar → carrinho → enviar pedido → acompanhar) continua
-   funcionando ponta a ponta depois do re-skin — mesmo tipo de checagem manual
-   já feita no M10 quando o botão "enviar pedido" foi conectado à API.
+1. Visual/browser real com fixture fake (`/v1/kds/tickets` fake em 3001):
+   pareamento, board com ticket em cada status (novo/em preparo/pronto,
+   incluindo item cancelado), estado vazio, 375px width — cores confirmadas
+   via `getComputedStyle` (não só visual), inclusive checando explicitamente
+   que os botões de ação usam o `--card-warm` correto do tema escuro
+   (`#faf6f1`/`#302923`), não o antigo `--surface`.
+2. Regressão: clique real em "Iniciar preparo" contra a fixture fake muda o
+   ticket pra "Em preparo" na tela (mesmo padrão de golden path usado no M20).
 
-### Gate de Plano (respondido no início da execução do M22)
-1. **Tela de detalhe do produto é um novo `screen` no mesmo componente**
-   (`'menu' | 'product' | 'cart' | 'orders'`), não uma rota Next nova — seguindo
-   o padrão já estabelecido em `CustomerMenu` (troca de `screen` em vez de
-   navegação de URL, mantém o estado da sessão/carrinho sem re-fetch).
-2. **Placeholder de imagem é um bloco visual só, sem `<img>` nem asset novo** —
-   não inventar upload de imagem agora (fora de escopo, `catalog.ts` M5).
-3. **Chips de categoria filtram a MESMA lista já carregada** (client-side),
-   sem nova chamada de API — o catálogo inteiro já vem de uma vez desde o M7.
-4. **Adicionar direto do card da lista continua funcionando** (não força
-   passar pelo detalhe) — muita gente já sabe o que quer pedir, forçar um
-   passo a mais pra tudo seria fricção sem necessidade real.
+### Gate de Plano (respondido no início da execução do M23)
+1. **Reaplicar `.kds-theme` na raiz da página inteira** (pareamento + board +
+   todos os estados), não só no board — o mockup não tem uma tela de
+   pareamento clara/escura misturada.
+2. **Corrigir o token `--card-warm` do `.kds-theme` antes de usá-lo** — usar o
+   valor errado (igual a `--surface`) faria os botões de ação ficarem da
+   mesma cor do card, sem destaque, diferente do mockup.
+3. **Zero mudança de lógica de negócio/realtime** — é reskin puro; watchdog,
+   SSE, polling de segurança e o pareamento continuam como estão desde o M20.
 
 ---
+
+## Histórico — M22 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
+`customer-menu.tsx` re-skinado (raio `rounded-lg`/sombra sutil, cabeçalho com badge de marca + selo "Aberto" + chips de categoria com scroll horizontal filtrando client-side); nova `ProductDetailScreen` (artboard B2, placeholder de foto via ícone Lucide sobre `--card-warm`, sem upload real); `QuantityControl` ganhou variante `full`. Achados reais testando no navegador: chip sintético "Destaques" colidia com nome de categoria real (renomeado pra "Todos"); `ProductCard` estava com `<button>` aninhando outros `<button>`s (HTML inválido) — trocado por `<div role="button" tabIndex={0}>` com teclado.
 
 ## Histórico — M21 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
 `globals.css` reescrito com os tokens extraídos do DOM do mockup aprovado (hex/rgb, não oklch); tema claro vira padrão de `:root`; `.kds-theme` como tema escuro quente fixo e isolado do KDS; família tipográfica única (Switzer — Schibsted Grotesk e JetBrains Mono removidas); `--brand` continua white-label, só o valor default mudou; `FRONTEND_GUIDELINES.md` reescrito por completo.
