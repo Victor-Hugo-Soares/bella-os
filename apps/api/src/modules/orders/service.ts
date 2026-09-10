@@ -313,3 +313,118 @@ export async function listOrdersForTableSession(
       .sort((a, b) => b.sequenceNumber - a.sequenceNumber);
   });
 }
+
+export interface CancelOrderItemInput {
+  stage: 'before_production' | 'after_production';
+  reason: string;
+  /** Só relevante em `after_production` — antes disso, cancelamento é sempre revertido. */
+  chargeOnCancel?: boolean | undefined;
+}
+
+const BEFORE_PRODUCTION_STATUSES = ['queued'];
+const AFTER_PRODUCTION_STATUSES = ['preparing', 'ready', 'delivered'];
+
+/**
+ * Cancela um item de pedido (M11, DOMAIN_MODEL.md §2.5/§2.9). Dois caminhos:
+ * - `before_production` (item ainda `queued`): reversão TOTAL sempre (o cliente nunca
+ *   chegou a receber nada) — `item_reversal` automático, sem decisão do operador.
+ * - `after_production` (`preparing`/`ready`/`delivered`): exige `reason` +
+ *   `chargeOnCancel` explícito — `true` (cliente paga, sem estorno) ou `false`
+ *   (cortesia/perda, `item_reversal`).
+ * Idempotente por construção: item já `cancelled` é devolvido sem nenhum efeito
+ * colateral novo — nunca gera um segundo `item_reversal` para o mesmo item (dinheiro
+ * duplicado é o pior tipo de bug aqui, regra 2 do CLAUDE.md).
+ */
+export async function cancelOrderItem(
+  db: Db,
+  tenantId: string,
+  orderId: string,
+  itemId: string,
+  actor: OrderActor,
+  input: CancelOrderItemInput,
+): Promise<{ id: string; status: string; reversed: boolean }> {
+  return withTenant(db, tenantId, async (tx) => {
+    const [item] = await tx
+      .select()
+      .from(schema.orderItems)
+      .where(
+        and(
+          eq(schema.orderItems.id, itemId),
+          eq(schema.orderItems.orderId, orderId),
+          eq(schema.orderItems.tenantId, tenantId),
+        ),
+      )
+      .for('update');
+    if (!item) throw new AppError('NOT_FOUND', 'Item de pedido não encontrado.');
+
+    if (item.status === 'cancelled') {
+      // Idempotente: já cancelado — não reprocessa, não gera segundo estorno.
+      return { id: item.id, status: 'cancelled', reversed: item.chargeOnCancel === false };
+    }
+
+    const allowedStatuses =
+      input.stage === 'before_production' ? BEFORE_PRODUCTION_STATUSES : AFTER_PRODUCTION_STATUSES;
+    if (!allowedStatuses.includes(item.status)) {
+      throw new AppError(
+        'INVALID_TRANSITION',
+        `Item está em '${item.status}', incompatível com cancelamento '${input.stage}'.`,
+      );
+    }
+
+    const chargeOnCancel =
+      input.stage === 'before_production' ? false : (input.chargeOnCancel ?? false);
+    const reversed = !chargeOnCancel;
+
+    const [order] = await tx
+      .select({ tabId: schema.orders.tabId })
+      .from(schema.orders)
+      .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenantId)));
+    if (!order) throw new AppError('NOT_FOUND', 'Pedido não encontrado.');
+
+    await tx
+      .update(schema.orderItems)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancelReason: input.reason,
+        cancelStage: input.stage,
+        chargeOnCancel,
+      })
+      .where(eq(schema.orderItems.id, itemId));
+
+    if (reversed) {
+      await tx.insert(schema.ledgerEntries).values({
+        id: newId(),
+        tenantId,
+        tabId: order.tabId,
+        type: 'item_reversal',
+        amountCents: -item.lineTotalCents,
+        refType: 'order_item',
+        refId: item.id,
+        reason: input.reason,
+        createdBy: actor,
+      });
+    }
+
+    await tx.insert(schema.orderEvents).values({
+      id: newId(),
+      tenantId,
+      orderId,
+      orderItemId: item.id,
+      type: 'item.cancelled',
+      fromStatus: item.status,
+      toStatus: 'cancelled',
+      actor,
+    });
+
+    await tx.insert(schema.domainEvents).values({
+      id: newId(),
+      tenantId,
+      channel: 'orders',
+      type: 'item.cancelled',
+      payload: { orderId, itemId: item.id, ticketId: item.ticketId },
+    });
+
+    return { id: item.id, status: 'cancelled', reversed };
+  });
+}

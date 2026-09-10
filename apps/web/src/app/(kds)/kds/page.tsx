@@ -12,6 +12,7 @@ interface TicketItem {
   name: string;
   quantity: number;
   notes: string | null;
+  status: string;
 }
 interface Ticket {
   id: string;
@@ -123,6 +124,8 @@ function TicketBoard({ deviceToken }: { deviceToken: string }) {
     const source = new EventSource(url.toString());
     eventSourceRef.current = source;
     source.addEventListener('order.created', () => void load());
+    // item.cancelled (M11): recarrega para mostrar o destaque "CANCELADO" em tempo real.
+    source.addEventListener('item.cancelled', () => void load());
 
     return () => {
       clearInterval(pollTimer);
@@ -183,16 +186,33 @@ function TicketBoard({ deviceToken }: { deviceToken: string }) {
               ) : null}
             </div>
             <ul className="mb-4 flex flex-col gap-2">
-              {ticket.items.map((item) => (
-                <li key={item.id}>
-                  <p className="text-xl font-semibold text-foreground">
-                    {item.quantity}× {item.name}
-                  </p>
-                  {item.notes ? (
-                    <p className="text-base text-muted-foreground">{item.notes}</p>
-                  ) : null}
-                </li>
-              ))}
+              {ticket.items.map((item) =>
+                item.status === 'cancelled' ? (
+                  <li
+                    key={item.id}
+                    className="rounded-md p-1"
+                    style={{
+                      backgroundColor: 'color-mix(in oklch, var(--danger) 14%, transparent)',
+                    }}
+                  >
+                    <p className="text-xl font-semibold text-danger line-through">
+                      {item.quantity}× {item.name}
+                    </p>
+                    <p className="text-sm font-medium tracking-wide text-danger uppercase">
+                      Cancelado
+                    </p>
+                  </li>
+                ) : (
+                  <li key={item.id}>
+                    <p className="text-xl font-semibold text-foreground">
+                      {item.quantity}× {item.name}
+                    </p>
+                    {item.notes ? (
+                      <p className="text-base text-muted-foreground">{item.notes}</p>
+                    ) : null}
+                  </li>
+                ),
+              )}
             </ul>
             {ticket.status === 'queued' ? (
               <button

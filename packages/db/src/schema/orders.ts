@@ -1,4 +1,14 @@
-import { bigint, check, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  boolean,
+  check,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { idColumn, timestamps } from './_columns';
 import { tenantIsolationPolicy } from './_rls';
@@ -9,11 +19,11 @@ import { products, stations } from './catalog';
 
 /**
  * Pedidos e produção (DOMAIN_MODEL.md §1.5, M8). Tabelas de negócio normais: RLS por
- * tenant (ADR-021), nada de exceção. **Escopo do M8** (ACTIVE_PLAN.md): sem
- * modificador no item (carrinho do M7 não tem — `modifiers_total_cents` sempre 0,
- * `selections`/`components` sempre nulos, prontos para quando a UI de modificador
- * existir); sem cancelamento (`cancelled_at`/`cancel_reason`/`cancel_stage`/
- * `charge_on_cancel` reservados, é M11); `sequence_number` é um contador simples por
+ * tenant (ADR-021), nada de exceção. Cancelamento de item (`cancelled_at`/
+ * `cancel_reason`/`cancel_stage`/`charge_on_cancel`) chegou no M11. **Escopo do M8**
+ * (ACTIVE_PLAN.md): sem modificador no item (carrinho do M7 não tem —
+ * `modifiers_total_cents` sempre 0, `selections`/`components` sempre nulos, prontos
+ * para quando a UI de modificador existir); `sequence_number` é um contador simples por
  * tenant (não reseta por dia operacional ainda — depende de `tenant_settings.
  * business_day_cutoff`, entra quando um relatório diário real precisar disso, Fase D).
  */
@@ -81,12 +91,23 @@ export const orderItems = pgTable(
     status: text('status').notNull().default('queued'),
     selections: jsonb('selections'),
     ticketId: uuid('ticket_id'),
+    // Cancelamento (M11, DOMAIN_MODEL.md §2.5). `cancelStage` registra em qual etapa
+    // foi cancelado (antes/depois da produção) — não é o mesmo dado que `status`, que
+    // vira sempre 'cancelled'; é o "como chegou lá" para relatório/auditoria.
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelReason: text('cancel_reason'),
+    cancelStage: text('cancel_stage'),
+    chargeOnCancel: boolean('charge_on_cancel'),
     ...timestamps,
   },
   (t) => [
     check(
       'order_items_status_check',
       sql`${t.status} in ('queued', 'preparing', 'ready', 'delivered', 'cancelled')`,
+    ),
+    check(
+      'order_items_cancel_stage_check',
+      sql`${t.cancelStage} is null or ${t.cancelStage} in ('before_production', 'after_production')`,
     ),
     check('order_items_quantity_check', sql`${t.quantity} > 0`),
     check('order_items_unit_price_cents_check', sql`${t.unitPriceCents} >= 0`),

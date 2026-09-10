@@ -64,6 +64,13 @@
       "when": 1789041860046,
       "tag": "0008_flowery_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789044505141,
+      "tag": "0009_abnormal_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }

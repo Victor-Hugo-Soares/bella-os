@@ -8,6 +8,8 @@ export interface TicketItem {
   name: string;
   quantity: number;
   notes: string | null;
+  /** 'cancelled' (M11) é o único valor que a tela do KDS precisa destacar. */
+  status: string;
 }
 
 export interface Ticket {
@@ -70,7 +72,13 @@ export async function listActiveTickets(
       recallCount: ticket.recallCount,
       items: items
         .filter((i) => i.ticketId === ticket.id)
-        .map((i) => ({ id: i.id, name: i.nameSnapshot, quantity: i.quantity, notes: i.notes })),
+        .map((i) => ({
+          id: i.id,
+          name: i.nameSnapshot,
+          quantity: i.quantity,
+          notes: i.notes,
+          status: i.status,
+        })),
     }));
   });
 }
@@ -182,6 +190,7 @@ async function ticketRowToTicket(
       name: i.nameSnapshot,
       quantity: i.quantity,
       notes: i.notes,
+      status: i.status,
     })),
   };
 }
@@ -223,7 +232,13 @@ export async function listReadyTicketsForTenant(db: Db, tenantId: string): Promi
       recallCount: ticket.recallCount,
       items: items
         .filter((i) => i.ticketId === ticket.id)
-        .map((i) => ({ id: i.id, name: i.nameSnapshot, quantity: i.quantity, notes: i.notes })),
+        .map((i) => ({
+          id: i.id,
+          name: i.nameSnapshot,
+          quantity: i.quantity,
+          notes: i.notes,
+          status: i.status,
+        })),
     }));
   });
 }

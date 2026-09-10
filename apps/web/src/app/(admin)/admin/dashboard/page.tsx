@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   LogOut,
   Mail,
+  Send,
   UtensilsCrossed,
   User,
 } from 'lucide-react';
@@ -159,6 +160,13 @@ export default function DashboardPage() {
           >
             <Bell className="h-4 w-4" strokeWidth={1.5} />
             Chamados
+          </Link>
+          <Link
+            href="/admin/staff-order"
+            className="flex w-fit items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
+          >
+            <Send className="h-4 w-4" strokeWidth={1.5} />
+            Lançar pedido
           </Link>
         </div>
       </main>

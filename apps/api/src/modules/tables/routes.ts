@@ -141,6 +141,12 @@ export async function tablesRoutes(app: FastifyInstance, deps: TablesRoutesDeps)
     return { serviceRequest };
   });
 
+  // Comandas abertas (M11) — para o staff escolher onde lançar um pedido em nome da mesa.
+  app.get('/v1/tabs/open', manage, async (request) => {
+    const tabs = await tablesService.listOpenTabs(db, request.actor!.tenantId);
+    return { tabs };
+  });
+
   app.get('/v1/service-requests', manage, async (request) => {
     const serviceRequests = await tablesService.listOpenServiceRequests(
       db,
