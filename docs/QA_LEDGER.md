@@ -608,5 +608,24 @@ Victor desenhou as 20 telas do produto num canvas do Claude Design e aprovou a d
 ### 2026-09-11 — M21 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
 Todos verdes no monorepo inteiro.
 
-### 2026-09-11 — M21 — Gate Git — PENDENTE
+### 2026-09-11 — M21 — Gate Git — PASS
+PR #28 (`claude/m21-design-system-foundation` → `main`), CI remota verde nos 4 jobs de primeira, merge commit `4f8940b`.
+
+---
+
+## M22 — Cliente (re-skin + tela de detalhe do produto)
+
+### 2026-09-11 — M22 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` respondeu o Gate de Plano: tela de detalhe do produto é um novo `screen` no mesmo componente `CustomerMenu` (não rota Next nova); placeholder de imagem é só um bloco visual (sem upload, fora de escopo — `catalog.ts` M5); chips de categoria filtram a lista já carregada, sem chamada de API nova; adicionar direto do card da lista continua funcionando, sem forçar passar pelo detalhe.
+
+### 2026-09-11 — M22 — G5 UX (visual + regressão) — PASS
+- `apps/web/src/components/customer/customer-menu.tsx`: header com badge de marca + selo "Aberto" + chips de categoria (scroll horizontal); cards com raio/sombra do mockup; nova `ProductDetailScreen` (foto placeholder, nome, descrição, preço, stepper de rodapé); `QuantityControl` ganhou variante `full` reaproveitada pelo card E pelo detalhe.
+- **Bug real pego testando de verdade no navegador**: o chip sintético "mostrar tudo" tinha o mesmo nome de uma categoria de teste ("Destaques"), duplicando visualmente — corrigido renomeando o chip sintético pra "Todos" (nunca colide com nome de categoria real de um tenant).
+- **Correção de acessibilidade pega na própria revisão, não só no teste visual**: o card de produto virou um `<button>` contendo os botões do stepper de quantidade — `<button>` dentro de `<button>` é HTML inválido (nesting de elementos interativos, o browser conserta sozinho de forma imprevisível). Trocado por `<div role="button" tabIndex={0}>` com `onKeyDown` (Enter/Espaço) — mesma semântica de clique, sem aninhar interativos. Retestado: clique no card abre o detalhe, clique no botão de quantidade adiciona ao carrinho SEM abrir o detalhe (dois comportamentos independentes confirmados via DOM real, não só lido no código).
+- **[visual, browser real]** Fluxo golden path completo testado com servidor fake local simulando a API pública (mesmo padrão do M9/M10, sem Postgres local — ENV-1) em 375px: abrir mesa → cardápio com chips → abrir detalhe do produto → adicionar ao carrinho pelo detalhe → voltar ao cardápio (card já mostra o stepper sincronizado) → abrir carrinho → enviar pedido → tela de acompanhamento mostra o pedido → "chamar garçom" confirma na tela.
+
+### 2026-09-11 — M22 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
+Todos verdes no monorepo inteiro. Nenhuma chamada de API nova — só composição/visual sobre o que já existia desde M7/M8/M10.
+
+### 2026-09-11 — M22 — Gate Git — PENDENTE
 Branch pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.
