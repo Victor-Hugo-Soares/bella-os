@@ -28,7 +28,7 @@
   --input: #e8e8e8;
   --ring: rgb(189 48 39 / 0.4);
   --radius: 7px;
-  --radius-lg: 13px;
+  --radius-card: 13px;
 
   --danger: #c0392b;
   --success: #2f7d4f;
@@ -80,7 +80,7 @@
   --color-danger: var(--danger);
   --color-success: var(--success);
   --radius-md: var(--radius);
-  --radius-lg: var(--radius-lg);
+  --radius-lg: var(--radius-card);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);

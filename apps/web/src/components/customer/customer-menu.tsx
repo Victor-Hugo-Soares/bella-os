@@ -10,6 +10,7 @@ import {
   Plus,
   Receipt,
   ShoppingBag,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { BellaMark } from '@/components/bella-mark';
 import { ApiError, apiFetch } from '@/lib/api';
@@ -73,7 +74,10 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
 export function CustomerMenu({ tenantSlug, tableCode }: { tenantSlug: string; tableCode: string }) {
   const [session, setSession] = useState<SessionState>({ status: 'loading' });
   const [catalog, setCatalog] = useState<CatalogState>({ status: 'loading' });
-  const [screen, setScreen] = useState<'menu' | 'cart' | 'orders'>('menu');
+  const [screen, setScreen] = useState<'menu' | 'product' | 'cart' | 'orders'>('menu');
+  const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const tenantName = tenantSlug.charAt(0).toUpperCase() + tenantSlug.slice(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,32 +145,78 @@ export function CustomerMenu({ tenantSlug, tableCode }: { tenantSlug: string; ta
     return <OrdersScreen tenantSlug={tenantSlug} onBack={() => setScreen('menu')} />;
   }
 
+  if (session.status === 'ok' && screen === 'product' && activeProduct) {
+    return (
+      <ProductDetailScreen
+        product={activeProduct}
+        tableSessionId={session.tableSessionId}
+        onBack={() => setScreen('menu')}
+      />
+    );
+  }
+
+  const sortedCategories =
+    catalog.status === 'ok'
+      ? [...catalog.categories].sort((a, b) => a.sortOrder - b.sortOrder)
+      : [];
+
   return (
     <div className="min-h-screen bg-background pb-24">
-      <header className="flex items-center justify-between border-b border-border px-4 py-4">
-        <div className="flex items-center gap-2.5">
-          <BellaMark className="h-7 w-7 text-foreground" />
-          {session.status === 'ok' ? (
-            <span className="text-sm font-medium text-foreground">{session.tableLabel}</span>
-          ) : (
-            <div className="h-4 w-24 animate-pulse rounded bg-elevated" />
-          )}
+      <header className="border-b border-border bg-surface px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-brand-foreground">
+              <BellaMark className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-base font-semibold tracking-tight text-foreground">{tenantName}</p>
+              {session.status === 'ok' ? (
+                <p className="text-xs text-muted-foreground">{session.tableLabel}</p>
+              ) : (
+                <div className="mt-1 h-3 w-16 animate-pulse rounded bg-elevated" />
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1 text-xs font-medium text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              Aberto
+            </span>
+            {session.status === 'ok' ? (
+              <button
+                type="button"
+                onClick={() => setScreen('orders')}
+                className="text-xs font-medium tracking-wide text-muted-foreground uppercase hover:text-foreground"
+              >
+                Meus pedidos
+              </button>
+            ) : null}
+          </div>
         </div>
-        {session.status === 'ok' ? (
-          <button
-            type="button"
-            onClick={() => setScreen('orders')}
-            className="text-xs font-medium tracking-wide text-muted-foreground uppercase hover:text-foreground"
-          >
-            Meus pedidos
-          </button>
+
+        {sortedCategories.length > 0 ? (
+          <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4">
+            <CategoryChip
+              label="Todos"
+              active={activeCategoryId === null}
+              onClick={() => setActiveCategoryId(null)}
+            />
+            {sortedCategories.map((category) => (
+              <CategoryChip
+                key={category.id}
+                label={category.name}
+                active={activeCategoryId === category.id}
+                onClick={() => setActiveCategoryId(category.id)}
+              />
+            ))}
+          </div>
         ) : null}
       </header>
 
       {catalog.status === 'loading' ? (
         <div className="flex flex-col gap-3 px-4 py-6">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-20 animate-pulse rounded-md bg-elevated" />
+            <div key={i} className="h-24 animate-pulse rounded-lg bg-elevated" />
           ))}
         </div>
       ) : catalog.products.length === 0 ? (
@@ -175,9 +225,17 @@ export function CustomerMenu({ tenantSlug, tableCode }: { tenantSlug: string; ta
         </p>
       ) : (
         <MenuList
-          categories={catalog.categories}
+          categories={
+            activeCategoryId
+              ? sortedCategories.filter((c) => c.id === activeCategoryId)
+              : sortedCategories
+          }
           products={catalog.products}
           tableSessionId={session.status === 'ok' ? session.tableSessionId : null}
+          onOpenProduct={(product) => {
+            setActiveProduct(product);
+            setScreen('product');
+          }}
         />
       )}
 
@@ -213,14 +271,48 @@ function ScreenHeader({ title, onBack }: { title: string; onBack: () => void }) 
   );
 }
 
+function CategoryChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`shrink-0 rounded-lg px-3.5 py-2 text-sm font-medium whitespace-nowrap ${
+        active
+          ? 'bg-brand text-brand-foreground'
+          : 'border border-border-strong bg-surface text-foreground'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ProductPhotoPlaceholder({ className = 'h-full w-full' }: { className?: string }) {
+  return (
+    <div className={`flex items-center justify-center bg-card-warm ${className}`}>
+      <UtensilsCrossed className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
+    </div>
+  );
+}
+
 function MenuList({
   categories,
   products,
   tableSessionId,
+  onOpenProduct,
 }: {
   categories: Category[];
   products: Product[];
   tableSessionId: string | null;
+  onOpenProduct: (product: Product) => void;
 }) {
   const sortedCategories = [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
   return (
@@ -237,7 +329,12 @@ function MenuList({
             </h2>
             <div className="flex flex-col gap-3">
               {items.map((product) => (
-                <ProductCard key={product.id} product={product} tableSessionId={tableSessionId} />
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  tableSessionId={tableSessionId}
+                  onOpen={() => onOpenProduct(product)}
+                />
               ))}
             </div>
           </section>
@@ -250,24 +347,74 @@ function MenuList({
 function ProductCard({
   product,
   tableSessionId,
+  onOpen,
 }: {
   product: Product;
   tableSessionId: string | null;
+  onOpen: () => void;
 }) {
+  // Div com role="button", não um <button>: o card precisa conter os controles de
+  // quantidade, que são botões próprios — <button> dentro de <button> é HTML inválido
+  // (o browser conserta sozinho de forma imprevisível). role="button" + teclado dá a
+  // mesma semântica de clique sem aninhar elementos interativos.
   return (
-    <div className="flex items-start justify-between gap-3 rounded-md border border-border bg-surface p-4">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">{product.name}</p>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      aria-label={`Ver detalhes de ${product.name}`}
+      className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-surface p-3 text-left shadow-[0_8px_24px_rgba(0,0,0,.03)]"
+    >
+      <ProductPhotoPlaceholder className="h-16 w-16 shrink-0 rounded-md" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-foreground">{product.name}</p>
         {product.description ? (
           <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{product.description}</p>
         ) : null}
-        <p className="font-mono-tabular mt-1.5 text-sm text-foreground">
+        <p className="font-mono-tabular mt-1.5 text-sm font-semibold text-foreground">
           {currency.format(product.basePriceCents / 100)}
         </p>
       </div>
       {tableSessionId ? (
-        <QuantityControl product={product} tableSessionId={tableSessionId} />
+        <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+          <QuantityControl product={product} tableSessionId={tableSessionId} />
+        </div>
       ) : null}
+    </div>
+  );
+}
+
+function ProductDetailScreen({
+  product,
+  tableSessionId,
+  onBack,
+}: {
+  product: Product;
+  tableSessionId: string;
+  onBack: () => void;
+}) {
+  return (
+    <div className="min-h-screen bg-background pb-28">
+      <ScreenHeader title="Detalhes do produto" onBack={onBack} />
+      <ProductPhotoPlaceholder className="h-56 w-full" />
+      <div className="px-4 py-5">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">{product.name}</h1>
+        {product.description ? (
+          <p className="mt-2 text-sm text-muted-foreground">{product.description}</p>
+        ) : null}
+        <p className="font-mono-tabular mt-3 text-lg font-semibold text-foreground">
+          {currency.format(product.basePriceCents / 100)}
+        </p>
+      </div>
+      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface px-4 py-3">
+        <QuantityControl product={product} tableSessionId={tableSessionId} full />
+      </div>
     </div>
   );
 }
@@ -275,9 +422,12 @@ function ProductCard({
 function QuantityControl({
   product,
   tableSessionId,
+  full = false,
 }: {
   product: Product;
   tableSessionId: string;
+  /** Variante de rodapé da tela de detalhe: botão/stepper ocupa a largura toda. */
+  full?: boolean;
 }) {
   const store = useCartStore(tableSessionId);
   const quantity = store((s) => s.items.find((i) => i.productId === product.id)?.quantity ?? 0);
@@ -296,16 +446,27 @@ function QuantityControl({
             unitPriceCents: product.basePriceCents,
           })
         }
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-brand text-brand-foreground"
+        className={
+          full
+            ? 'flex h-12 w-full items-center justify-center gap-2 rounded-md bg-brand text-sm font-medium text-brand-foreground'
+            : 'flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-brand text-brand-foreground'
+        }
         aria-label={`Adicionar ${product.name}`}
       >
         <Plus className="h-5 w-5" strokeWidth={2} />
+        {full ? 'Adicionar ao carrinho' : null}
       </button>
     );
   }
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 rounded-md border border-border-strong px-1">
+    <div
+      className={
+        full
+          ? 'flex h-12 w-full items-center justify-between gap-2 rounded-md border border-border-strong px-2'
+          : 'flex h-11 shrink-0 items-center gap-2 rounded-md border border-border-strong px-1'
+      }
+    >
       <button
         type="button"
         onClick={() => decrementItem(product.id)}
@@ -407,7 +568,7 @@ function CartScreen({
           {items.map((item) => (
             <div
               key={item.productId}
-              className="flex items-center justify-between rounded-md border border-border bg-surface p-4"
+              className="flex items-center justify-between rounded-lg border border-border-strong bg-surface p-4 shadow-[0_8px_24px_rgba(0,0,0,.03)]"
             >
               <div>
                 <p className="text-sm font-medium text-foreground">{item.name}</p>
@@ -544,7 +705,10 @@ function OrdersScreen({ tenantSlug, onBack }: { tenantSlug: string; onBack: () =
       ) : (
         <div className="flex flex-col gap-3 px-4">
           {orders.map((order) => (
-            <div key={order.id} className="rounded-md border border-border bg-surface p-4">
+            <div
+              key={order.id}
+              className="rounded-lg border border-border-strong bg-surface p-4 shadow-[0_8px_24px_rgba(0,0,0,.03)]"
+            >
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-medium text-foreground">
                   Pedido #{order.sequenceNumber}
