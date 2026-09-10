@@ -7,6 +7,7 @@ import {
   closeCashSessionSchema,
   createPaymentSchema,
   openCashSessionSchema,
+  tabSplitQuerySchema,
   voidPaymentSchema,
 } from '@bella/contracts';
 import { AppError } from '../../lib/errors';
@@ -15,8 +16,10 @@ import { requireAnySession, requirePermission } from '../identity/require-permis
 import {
   applyDiscount,
   closeCashSession,
+  closeTab,
   getBill,
   getCurrentCashSession,
+  getTabSplit,
   openCashSession,
   recordCashMovement,
   recordPayment,
@@ -181,6 +184,30 @@ export async function billingRoutes(app: FastifyInstance, deps: BillingRoutesDep
         body,
       );
       return { summary };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/v1/tabs/:id/close',
+    { preHandler: requirePermission(db, auth, 'tabs.close') },
+    async (request) => {
+      const actor = request.actor!;
+      const closure = await closeTab(db, actor.tenantId, request.params.id, {
+        type: 'user',
+        userId: actor.userId,
+      });
+      return { closure };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/v1/tabs/:id/split',
+    { preHandler: requireAnySession(db, auth) },
+    async (request) => {
+      const actor = request.actor!;
+      const query = parseOrThrow(tabSplitQuerySchema, request.query);
+      const split = await getTabSplit(db, actor.tenantId, request.params.id, query.parts);
+      return { split };
     },
   );
 }
