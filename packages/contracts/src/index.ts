@@ -7,3 +7,4 @@ export * from './service-requests';
 export * from './cancel-order-item';
 export * from './billing';
 export * from './payments';
+export * from './reports';

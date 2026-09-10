@@ -47,7 +47,7 @@
 **Gate da Fase D:** totais reconstruíveis; permissões e concorrência testadas; fechamento sem conta manual.
 
 ## Fase E — Operação robusta
-M16 impressão (agente local + fila) · M17 estoque/ficha técnica/CMV · M18 backup/restore testado + runbook de incidentes · M19 relatórios avançados · M20 degradação/reconexão endurecida e testes de caos.
+~~M16 impressão (agente local + fila)~~ **sem data — Victor confirmou em 2026-09-10 que por enquanto é só tela (Q7, `PRODUCT_CONTEXT.md §2`)**; slot reaproveitado para **M16 — Relatório do dia operacional** (faturamento, ticket médio, mais vendidos, cancelamentos/descontos por operador — escopo que já estava previsto no M14 original e não foi entregue, `KNOWN_ISSUES.md` R-16) · M17 estoque/ficha técnica/CMV (precisa de dados reais do Bella III) · M18 backup/restore testado + runbook de incidentes · M19 relatórios avançados (o que sobrar além do M16) · M20 degradação/reconexão endurecida e testes de caos.
 
 ## Fase F — Produção Bella
 M21 parametrização real (cardápio, mesas, equipe, taxas) · M22 dispositivos reais e Wi-Fi/4G · M23 piloto assistido (uma noite) · M24 checklist de abertura/fechamento e monitoramento.

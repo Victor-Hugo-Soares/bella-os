@@ -15,6 +15,7 @@ import { tablesRoutes } from './modules/tables/routes';
 import { orderRoutes } from './modules/orders/routes';
 import { billingRoutes } from './modules/billing/routes';
 import { kdsRoutes } from './modules/kds/routes';
+import { reportsRoutes } from './modules/reports/routes';
 import { realtimeRoutes } from './modules/realtime/routes';
 
 // Versão lida do package.json em tempo de build/execução (tsup embute o JSON).
@@ -99,6 +100,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     await app.register(orderRoutes, { db: db.db, auth });
     await app.register(billingRoutes, { db: db.db, auth });
     await app.register(kdsRoutes, { db: db.db, auth });
+    await app.register(reportsRoutes, { db: db.db, auth });
     await app.register(realtimeRoutes, { db: db.db });
   }
 
