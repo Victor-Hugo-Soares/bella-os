@@ -132,7 +132,7 @@ function ServiceRequestsContent() {
               {requests.map((r) => (
                 <li
                   key={r.id}
-                  className="flex items-center justify-between rounded-md border border-border bg-surface p-3"
+                  className="flex items-center justify-between rounded-lg border border-border-strong bg-surface p-3 shadow-[0_8px_24px_rgba(0,0,0,.03)]"
                 >
                   <span className="flex items-center gap-2 text-sm text-foreground">
                     {r.kind === 'request_bill' ? (
@@ -177,7 +177,7 @@ function ServiceRequestsContent() {
           ) : (
             <ul className="flex flex-col gap-2">
               {tickets.map((t) => (
-                <li key={t.id} className="rounded-md border border-border bg-surface p-3">
+                <li key={t.id} className="rounded-lg border border-border-strong bg-surface p-3 shadow-[0_8px_24px_rgba(0,0,0,.03)]">
                   <div className="mb-1 flex items-center gap-1.5 text-sm font-medium text-success">
                     <CheckCircle2 className="h-4 w-4" strokeWidth={1.5} />
                     Pronto

@@ -158,7 +158,7 @@ function StaffOrderContent() {
                 return (
                   <li
                     key={product.id}
-                    className="flex items-center justify-between rounded-md border border-border bg-surface p-3"
+                    className="flex items-center justify-between rounded-lg border border-border-strong bg-surface p-3 shadow-[0_8px_24px_rgba(0,0,0,.03)]"
                   >
                     <div>
                       <p className="text-sm text-foreground">{product.name}</p>

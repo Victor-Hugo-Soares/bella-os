@@ -2,7 +2,7 @@
 
 > Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.6/§4 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M21 (fundação) e M22 (cliente) estão mergeados em `main` (PR #28 commit `4f8940b`; PR #29 commit `6da6ed2`, ambos CI verde de primeira). M23 (KDS) em execução.
+> M21 (fundação), M22 (cliente) e M23 (KDS) estão mergeados em `main` (PR #28 commit `4f8940b`; PR #29 commit `6da6ed2`; PR #30 commit `9e5478f`, todos CI verde de primeira). M24 (admin, parte 1 — re-skin das telas existentes) em execução.
 
 ## Nova frente: handoff de design (Claude Design → produto real)
 
@@ -39,58 +39,73 @@ radius, sombra — não é achismo visual):
    conta) que só existiam como API.
 3. **M23 — KDS**: re-skin pro tema escuro quente do mockup (board, pareamento,
    banner de conexão já construído no M20).
-4. **M24+ — Admin**: re-skin das telas existentes (dashboard, catálogo,
-   dispositivos, chamados, pedido pela equipe, mesas/áreas, login) + construir
-   o que só existe como API hoje: comandas abertas, fechar comanda/pagamento,
-   abrir/fechar caixa, relatório do dia, equipe/permissões, configurações.
-   Provavelmente mais de um milestone — decidir o corte ao chegar lá.
+4. **M24 — Admin, parte 1**: re-skin visual das telas existentes (dashboard,
+   catálogo, dispositivos, chamados, pedido pela equipe, mesas/áreas, login).
+5. **M25+ — Admin, parte 2**: construir o que só existe como API hoje —
+   comandas abertas, fechar comanda/pagamento, abrir/fechar caixa, relatório
+   do dia, equipe/permissões, configurações. Envolve dinheiro/comanda/caixa
+   (regra 2 do `CLAUDE.md`: 3 frentes de teste, não 2) — decidir o corte de
+   telas por milestone ao chegar lá, provavelmente mais de um.
 
-## Milestone atual: **M23 — KDS (re-skin pro tema escuro quente)**
+## Milestone atual: **M24 — Admin, parte 1 (re-skin visual)**
+
+### O que já existe
+9 páginas (`(admin)/admin/{dashboard,login,devices,service-requests,staff-order,
+tables,tables/areas,catalog,catalog/categories,catalog/products,catalog/stations}`)
+todas anteriores ao M21 — ainda usam `rounded-md`, `border-border` sem
+`-strong`, sem a sombra sutil do design novo (`shadow-[0_8px_24px_rgba(0,0,0,.03)]`),
+e `login/page.tsx` tem 2 resquícios `oklch(...)` hardcoded do tema antigo. Não
+existe um shell/layout compartilhado único para todo o admin — `catalog/layout.tsx`
+e `tables/layout.tsx` são dois shells locais (header + tab-nav) estruturalmente
+iguais; dashboard/login/devices/service-requests/staff-order montam o próprio
+cabeçalho inline, sem componente compartilhado. `resource-crud.tsx` é usado por
+categories/stations (CRUD genérico) — corrigir esse componente uma vez cobre
+duas páginas de uma vez.
 
 ### Resultado esperado
-1. Raiz da tela do KDS (pareamento + board) ganha a classe `.kds-theme` — o
-   tema escuro quente vale em toda a superfície, não só no board.
-2. Correção de token: `.kds-theme` tinha `--card-warm: var(--surface)` (herdado
-   por engano do M21) — os botões de ação do mockup ("Iniciar preparo"/"Marcar
-   pronto") usam um bege claro (`#faf6f1`/`#302923`) mesmo no tema escuro, não
-   a cor escura de superfície. Corrigido em `globals.css` com
-   `--card-warm`/`--card-warm-foreground` distintos por tema.
-3. Botões de ação do ticket trocam de `bg-brand`/`bg-success` genéricos para
-   `bg-card-warm text-card-warm-foreground`, igual ao mockup. Raio dos cards e
-   botões vai de `rounded-md` pro `rounded-lg` (13px) do design system novo.
-4. Badge da tela de pareamento reaproveita o mesmo padrão de badge de marca já
-   usado no cliente (M22): ícone sobre `bg-card-warm`.
-5. Sem mudança de lógica — `TicketBoard`/pareamento/SSE/watchdog/banner de
-   conexão (M20) continuam exatamente como estão, é puramente re-skin visual.
+1. Todos os cards/containers ganham `rounded-lg` (13px) + a sombra sutil do
+   design system, substituindo `rounded-md`/sem sombra.
+2. Bordas viram `border-border-strong` onde hoje é `border-border` genérico
+   (mesmo padrão usado no re-skin do cliente/KDS).
+3. Os 2 resquícios `oklch(...)` hardcoded em `login/page.tsx` viram tokens
+   (`--border`/equivalente) — não pode sobrar cor não-tokenizada, o `--brand`
+   branco-label deixaria de funcionar ali se um tenant trocasse a cor.
+4. `resource-crud.tsx` corrigido primeiro (maior alavancagem — cobre
+   categories + stations de uma vez), depois os 2 shells (`catalog`/`tables`
+   layout — cobre a navegação em abas de 4 páginas), depois as 6 páginas com
+   cabeçalho próprio (dashboard, login, devices, service-requests, staff-order,
+   products — a maior individualmente, tem tabela/formulário próprios).
+5. Sem mudança de lógica/API em nenhuma tela — puramente troca de classe
+   utilitária de token, mesmo escopo do M22/M23.
 
 ### Riscos
-- **Confundir `--card-warm` do tema claro com o do tema escuro** — são valores
-  diferentes de propósito (claro: bege sobre fundo branco; escuro: bege claro
-  sobre fundo escuro, para destacar o botão de ação). Cada tema define o seu
-  dentro do próprio escopo (`:root` vs `.kds-theme`), não há token único
-  global pra isso.
+- **Volume de arquivos (13) aumenta a chance de esquecer um resquício antigo**
+  — verificar ao final com uma busca por `rounded-md` e `oklch(` dentro de
+  `apps/web/src/app/(admin)` e `apps/web/src/components/catalog` pra garantir
+  que não sobrou nada, não confiar só na lista inicial.
 
 ### Testes (2 frentes — normal, é UI sem mutação de dinheiro)
-1. Visual/browser real com fixture fake (`/v1/kds/tickets` fake em 3001):
-   pareamento, board com ticket em cada status (novo/em preparo/pronto,
-   incluindo item cancelado), estado vazio, 375px width — cores confirmadas
-   via `getComputedStyle` (não só visual), inclusive checando explicitamente
-   que os botões de ação usam o `--card-warm` correto do tema escuro
-   (`#faf6f1`/`#302923`), não o antigo `--surface`.
-2. Regressão: clique real em "Iniciar preparo" contra a fixture fake muda o
-   ticket pra "Em preparo" na tela (mesmo padrão de golden path usado no M20).
+1. Visual/browser real: login, dashboard, catálogo (3 sub-telas), dispositivos,
+   chamados, pedido pela equipe, mesas (2 sub-telas) — confirmando via
+   `getComputedStyle` que não sobrou `oklch(` nem radius antigo, com fixture
+   fake de staff logado (sem Postgres local — ENV-1).
+2. Regressão: fluxos de CRUD (criar/editar categoria, produto, estação; criar
+   dispositivo) continuam funcionando ponta a ponta depois do re-skin.
 
-### Gate de Plano (respondido no início da execução do M23)
-1. **Reaplicar `.kds-theme` na raiz da página inteira** (pareamento + board +
-   todos os estados), não só no board — o mockup não tem uma tela de
-   pareamento clara/escura misturada.
-2. **Corrigir o token `--card-warm` do `.kds-theme` antes de usá-lo** — usar o
-   valor errado (igual a `--surface`) faria os botões de ação ficarem da
-   mesma cor do card, sem destaque, diferente do mockup.
-3. **Zero mudança de lógica de negócio/realtime** — é reskin puro; watchdog,
-   SSE, polling de segurança e o pareamento continuam como estão desde o M20.
+### Gate de Plano (respondido no início da execução do M24)
+1. **Ordem de execução por alavancagem**: `resource-crud.tsx` → shells
+   (`catalog`/`tables` layout) → páginas standalone — não por ordem alfabética
+   de arquivo, pra reduzir retrabalho (arrumar o componente compartilhado uma
+   vez em vez de repetir o mesmo ajuste em cada página que o usa).
+2. **Zero mudança de lógica/contrato de API** — é reskin puro, mesmo tipo de
+   escopo do M22 (cliente) e M23 (KDS).
+3. **Fecha com busca ampla por `rounded-md`/`oklch(` no admin inteiro antes de
+   declarar pronto** — não confiar só na lista de arquivos levantada no início.
 
 ---
+
+## Histórico — M23 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
+`.kds-theme` aplicado em toda a tela do KDS (pareamento + board, não só board); corrigido bug real de token herdado por engano do M21 (`--card-warm` do tema escuro era igual a `--surface`) — adicionado par `--card-warm`/`--card-warm-foreground` correto (`#faf6f1`/`#302923`) pros botões de ação "Iniciar preparo"/"Marcar pronto"; raio `rounded-md` → `rounded-lg`. Achado feito proativamente (revisando a própria extração de cores do mockup antes de tocar na tela), não via bug de teste visual. Zero mudança de lógica de realtime/watchdog (M20 intacto).
 
 ## Histórico — M22 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
 `customer-menu.tsx` re-skinado (raio `rounded-lg`/sombra sutil, cabeçalho com badge de marca + selo "Aberto" + chips de categoria com scroll horizontal filtrando client-side); nova `ProductDetailScreen` (artboard B2, placeholder de foto via ícone Lucide sobre `--card-warm`, sem upload real); `QuantityControl` ganhou variante `full`. Achados reais testando no navegador: chip sintético "Destaques" colidia com nome de categoria real (renomeado pra "Todos"); `ProductCard` estava com `<button>` aninhando outros `<button>`s (HTML inválido) — trocado por `<div role="button" tabIndex={0}>` com teclado.

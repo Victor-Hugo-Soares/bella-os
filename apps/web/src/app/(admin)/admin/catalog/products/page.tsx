@@ -226,7 +226,7 @@ export default function ProductsPage() {
       {state.products.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum produto cadastrado ainda.</p>
       ) : (
-        <ul className="divide-y divide-border rounded-md border border-border bg-surface">
+        <ul className="divide-y divide-border rounded-lg border border-border-strong bg-surface shadow-[0_8px_24px_rgba(0,0,0,.03)]">
           {state.products.map((product) => (
             <li key={product.id} className="flex items-center justify-between px-4 py-3">
               <div>

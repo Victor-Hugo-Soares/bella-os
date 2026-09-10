@@ -648,3 +648,23 @@ Rodados na raiz do monorepo (mesmo comando que a CI usa — `pnpm lint` = `eslin
 
 ### 2026-09-11 — M23 — Gate Git — PASS
 PR #30 (`claude/m23-kds-reskin` → `main`), CI remota verde nos 4 jobs de primeira, merge commit `9e5478f`.
+
+---
+
+## M24 — Admin, parte 1 (re-skin visual das telas existentes)
+
+### 2026-09-11 — M24 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` respondeu o Gate de Plano: ordem de execução por alavancagem (componente/shell compartilhado antes de página individual); zero mudança de lógica/contrato de API; fecha com busca ampla por `rounded-md`/`oklch(` no admin inteiro antes de declarar pronto.
+
+### 2026-09-11 — M24 — G5 UX (visual + regressão) — PASS
+- `resource-crud.tsx` (usado por categorias/estações/áreas — 3 telas de uma vez): lista `rounded-md border border-border` → `rounded-lg border border-border-strong` + sombra sutil. Inputs/botões mantidos em `rounded-md` (7px) — já corretos, é o raio de controle do design system, não um resíduo.
+- 8 containers de card corrigidos individualmente (não tinham componente compartilhado): `catalog/products/page.tsx` (lista), `dashboard/page.tsx` (`<dl>` de conta), `devices/page.tsx` (card por dispositivo + card do código gerado), `service-requests/page.tsx` (chamado aberto + ticket pronto), `staff-order/page.tsx` (comanda aberta), `tables/page.tsx` (lista de mesas) — todos de `rounded-md border border-border` para `rounded-lg border border-border-strong` + `shadow-[0_8px_24px_rgba(0,0,0,.03)]`.
+- Headers/tab-nav de `catalog/layout.tsx` e `tables/layout.tsx` mantidos com `border-border` simples (não são "cards", são divisórias sutis de página — confirmado contra `FRONTEND_GUIDELINES.md §3`: só cards levam `border-strong`+sombra).
+- `login/page.tsx` revisado: já usava os tokens do M21 corretamente (`bg-surface`, `bg-brand`, etc.); o único `oklch(...)` restante é um grid decorativo de pontos (`linear-gradient`, branco 5% opacidade) sem token correspondente no design system — decoração estática, não um resíduo de tema a corrigir.
+- **[visual, browser real, `getComputedStyle`]** Fixture fake completa (`/v1/me`, `/v1/me/tenants`, `/v1/catalog/*`, `/v1/areas`, `/v1/tables`, `/v1/service-requests`, `/v1/tickets/ready`, `/v1/tabs/open`, `/v1/devices/pairing-codes`, sem Postgres local — ENV-1): dashboard, categorias, dispositivos (incluindo o card de código gerado, testado gerando um de verdade), chamados, pedido pela equipe, mesas — todos confirmados com `border-radius: 13px`, cor de borda `#dddddd` (`--border-strong`) e `box-shadow` com `0.03` de opacidade batendo com o token. 375px sem overflow horizontal.
+- **Regressão**: nenhuma mudança de lógica/API — fluxos de CRUD (criar categoria, gerar código de pareamento) testados funcionando ponta a ponta contra a fixture.
+
+### 2026-09-11 — M24 — `pnpm lint`/`typecheck`/`build` — PASS
+Rodados na raiz do monorepo (mesmo comando da CI), verdes. Busca ampla confirmou zero `rounded-md border border-border bg-surface` (padrão antigo de card) e zero `oklch(` fora do único uso decorativo já justificado, restantes no admin inteiro.
+
+### 2026-09-11 — M24 — Gate Git — PENDENTE

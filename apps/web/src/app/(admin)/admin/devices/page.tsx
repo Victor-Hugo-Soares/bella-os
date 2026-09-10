@@ -143,7 +143,7 @@ function DevicesPageContent() {
                   Cadastre uma estação primeiro em Catálogo → Estações.
                 </p>
               ) : (
-                <div className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3">
+                <div className="flex flex-col gap-2 rounded-lg border border-border-strong bg-surface p-3 shadow-[0_8px_24px_rgba(0,0,0,.03)]">
                   {stations.map((s) => (
                     <label key={s.id} className="flex items-center gap-2 text-sm text-foreground">
                       <input
@@ -175,7 +175,7 @@ function DevicesPageContent() {
         )}
 
         {code ? (
-          <div className="mt-6 rounded-md border border-border bg-surface p-6 text-center">
+          <div className="mt-6 rounded-lg border border-border-strong bg-surface p-6 text-center shadow-[0_8px_24px_rgba(0,0,0,.03)]">
             <p className="text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
               Código (válido por 10 min)
             </p>
