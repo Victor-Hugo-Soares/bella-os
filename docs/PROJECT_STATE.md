@@ -36,12 +36,11 @@ Sem mudança (Docker local com falha, ENV-1; workspace OneDrive, ENV-5; ENV-6 re
 **ADR-025, ADR-030, ADR-031** (RLS e exceções de tenant). **ADR-032** (M8: idempotência via `ON CONFLICT DO NOTHING`). **ADR-033** (M9: SSE via polling do outbox). **ADR-034** (M10: acompanhamento por polling; envio de pedido finalmente ligado ao carrinho — achado real de produto). Nenhum ADR novo no M11 (decisões de cancelamento seguiram os padrões já estabelecidos, sem novidade de arquitetura).
 
 ## 6. Perguntas abertas para o Victor
-Sem mudança — ver `PRODUCT_CONTEXT.md §2`. Nova observação (não bloqueante): a Fase D que começa agora (caixa/pagamento) é onde dinheiro físico entra em jogo pela primeira vez — vale o Victor revisar `docs/PRODUCT_CONTEXT.md` e confirmar como o Bella III realmente opera o caixa hoje (formas de pagamento aceitas, se usa maquininha própria por fora do sistema, etc.) antes do M13.
+**Q6 respondida pelo Victor em 2026-09-10:** pagamento continua na maquininha de cartão física, fora do sistema; o ADMIN faz a baixa manual (registra pagamento) no sistema. Isso confirma o default já adotado (`PRODUCT_CONTEXT.md §2` Q6) — **sem integração de PSP/TEF no M13**, o M13 é só registro manual de pagamento pelo caixa/admin contra o ledger. Demais perguntas sem mudança — ver `PRODUCT_CONTEXT.md §2`.
 
 ## 7. Dependendo do Victor / pendências operacionais
 - Reiniciar a máquina para tentar destravar o Docker Desktop (destravaria o Golden Journey completo com dados reais).
 - Decidir se torna o repositório privado (ainda pendente desde o bootstrap).
-- **Confirmar como o caixa físico do Bella III funciona hoje** antes do M13 (formas de pagamento, se há maquininha de cartão integrada ou separada) — vai moldar decisões de produto da Fase D.
 
 ## 8. Próximo passo exato
 Executar o **M12** conforme `docs/ACTIVE_PLAN.md`: cálculo de totais no servidor (taxa de serviço opcional/obrigatória, couvert, desconto com permissão), `GET /tabs/:id/bill`. **Crítico — 3 frentes** (dinheiro).
