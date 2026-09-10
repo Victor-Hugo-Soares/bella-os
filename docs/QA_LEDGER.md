@@ -539,5 +539,24 @@ Todos verdes no monorepo inteiro. Sem migration (nenhuma tabela nova).
 ### 2026-09-10 — M16 — Regressão pega pela CI (regra 3 do CLAUDE.md) — corrigida
 Primeira rodada de CI: o teste de faturamento esperava `3000` e recebeu `190600`. Diagnóstico: a janela usada era "últimos 60s até próximos 60s" — mas a suíte de integração inteira roda em menos de um minuto, e o tenant `bella` é reaproveitado por vários arquivos de teste (`payments.test.ts`, `golden-journey.test.ts`, `tab-close.test.ts`, ...); a janela larga capturou pedidos de OUTROS arquivos que rodaram segundos antes, não só do próprio teste. Não era bug de produção — a consulta fez exatamente o que devia com o intervalo que recebeu. Corrigido: `from`/`to` agora são capturados imediatamente antes/depois das próprias ações do teste (janela mínima, não "últimos N segundos"). Retestado — verde.
 
-### 2026-09-10 — M16 — Gate Git — PENDENTE
-Branch pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.
+### 2026-09-10 — M16 — Gate Git — PASS
+PR #25 (`claude/m16-daily-report` → `main`), CI remota verde nos 3 jobs na segunda rodada (1 regressão real de teste — janela de tempo larga demais, não bug de produção — corrigida antes do merge, ver acima), merge commit `5342e84`.
+
+---
+
+## M18 — Backup/restore testado + runbook de incidentes
+
+### 2026-09-10 — M18 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` respondeu o Gate de Plano no início da implementação: `pg_dump -Fc --no-owner --no-privileges` / `pg_restore --clean --if-exists`; prova real na CI (segundo banco Postgres, restaura o dump nele, compara `count(*)` de `tenants`/`memberships` entre origem e destino — só passa se bater); `postgresql-client-16` instalado explicitamente no job (nunca confiar no cliente padrão do runner); scripts em bash simples, sem camada TypeScript desnecessária; `docs/RUNBOOK_INCIDENTS.md` novo, separado do `RUNBOOK_DEV.md`; backups locais nunca commitados (`.gitignore`).
+
+### 2026-09-10 — M18 — G2/G9 Dados/observabilidade e recuperação — PASS
+- `packages/db/scripts/backup.sh` / `restore.sh` (executáveis, `chmod +x`), `pnpm db:backup` / `pnpm db:restore`.
+- **Job novo `backup-restore` em `.github/workflows/ci.yml`**: semeia o banco, tira backup, cria um segundo banco Postgres do zero, restaura o dump nele, compara contagens de `tenants` e `memberships` entre original e restaurado — falha explicitamente se divergir. Não é um teste de "os comandos rodaram sem erro"; é uma prova de que a restauração devolve os dados certos.
+- `docs/RUNBOOK_INCIDENTS.md`: API fora do ar, Postgres inacessível, restaurar de um backup (com os MESMOS comandos que a CI prova que funcionam), divergência de caixa/dado financeiro suspeito (nunca editar `ledger_entries` diretamente — append-only).
+- `.gitignore`: `packages/db/backups/` nunca commitado.
+
+### 2026-09-10 — M18 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
+Todos verdes no monorepo inteiro. Prova de backup/restore em si só roda na CI (exige um segundo banco Postgres real — não disponível localmente, ENV-1).
+
+### 2026-09-10 — M18 — Gate Git — PENDENTE
+Branch pronta para abrir PR; aguardando CI remota (incluindo o job novo `backup-restore`). Atualizar para PASS com número da PR e commit de merge assim que fechar.

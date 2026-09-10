@@ -24,6 +24,8 @@
     "db:seed": "pnpm --filter @bella/db seed",
     "db:generate": "pnpm --filter @bella/db generate",
     "db:check": "pnpm --filter @bella/db check",
+    "db:backup": "pnpm --filter @bella/db backup",
+    "db:restore": "pnpm --filter @bella/db restore",
     "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
