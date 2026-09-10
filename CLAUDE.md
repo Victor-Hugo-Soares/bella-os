@@ -46,16 +46,16 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **C — Pedido ponta a ponta** (recém-iniciada). Milestone concluído e mergeado: **M7 Cardápio do cliente + carrinho**, 2026-09-10 — **Fase B completa** (M4–M7). Próximo: **M8 — Criação idempotente de pedido** (primeiro milestone crítico da fase).
-- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6, padrão estrutural do ambiente); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (7+ bugs reais entre M0–M7).
+- Fase: **C — Pedido ponta a ponta**. Milestone concluído e mergeado: **M8 Criação idempotente de pedido** (primeiro crítico da fase), 2026-09-10. Próximo: **M9 — KDS em tempo real (SSE)**.
+- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6, padrão estrutural do ambiente); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (8+ bugs reais entre M0–M8, incluindo um na própria suíte de teste do M8, pego pela CI).
 - **Modo de execução: hands-off desde 2026-09-10** — o Victor pediu para não pausar pedindo "posso seguir?"/"posso mergear?"; merge após CI verde acontece direto, só bloqueio real interrompe (regra 4 do CLAUDE.md).
-- Branch: `main`. Último commit: `b5a35dd` (merge PR #11, M7). CI verde nos 3 jobs (integração Postgres: 63/63 testes em 10 arquivos).
-- Último gate aprovado: G0–G3 (M0–M7), G5 (UX/mobile, inclui mobile-first do cliente), G6 (isolamento por tenant + autenticação + permissão + dispositivo/PIN + catálogo + sessão de mesa, positivo/negativo, M1–M7). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
+- Branch: `main`. Último commit: `123537a` (merge PR #13, M8). CI verde nos 3 jobs (integração Postgres: 68/68 testes em 11 arquivos).
+- Último gate aprovado: G0–G3 (M0–M8), G5 (UX/mobile), G6 (isolamento/autenticação/permissão/catálogo/sessão de mesa, M1–M7), **G7 dinheiro/comanda** (M8: idempotência real + preço do servidor + ledger, 3 frentes). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
 - Bloqueios: nenhum.
 
 ## Próximo passo exato
 
-Executar o **M8** conforme `docs/ACTIVE_PLAN.md`: `POST /v1/orders` idempotente, snapshot de preço, tickets de produção por estação, ledger `item_charge`, `order_events`/outbox. **Crítico — 3 frentes obrigatórias** (regra 2).
+Executar o **M9** conforme `docs/ACTIVE_PLAN.md`: SSE (`/v1/stream`) consumindo o outbox `domain_events` (já alimentado desde o M8), tela de KDS por estação, polling de segurança, reconexão sem duplicar.
 
 ## Arquitetura atual (resumo; detalhes em `docs/ARCHITECTURE.md`)
 

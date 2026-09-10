@@ -2,38 +2,36 @@
 
 > Fotografia atual. Atualizar ao fim de cada milestone e antes de compactar contexto. Histórico vai para `memory/archive/`.
 
-**Atualizado em:** 2026-09-10 (M7 concluído e mergeado — Fase B completa, sessão Sonnet 5, execução hands-off)
-**Fase:** C — Pedido ponta a ponta (recém-iniciada) · **Milestone concluído:** M7 Cardápio do cliente + carrinho (fim da Fase B) · **Próximo:** M8 Criação idempotente de pedido (`ACTIVE_PLAN.md`) — primeiro milestone **crítico** da fase
-**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commit:** `b5a35dd` (merge PR #11, M7)
-**CI:** verde nos 3 jobs (lint·format·typecheck·unit, integração Postgres — **63/63 testes** em 10 arquivos, build+smoke).
+**Atualizado em:** 2026-09-10 (M8 concluído e mergeado — primeiro milestone crítico da Fase C, sessão Sonnet 5, execução hands-off)
+**Fase:** C — Pedido ponta a ponta · **Milestone concluído:** M8 Criação idempotente de pedido · **Próximo:** M9 KDS em tempo real (`ACTIVE_PLAN.md`)
+**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commit:** `123537a` (merge PR #13, M8)
+**CI:** verde nos 3 jobs (lint·format·typecheck·unit, integração Postgres — **68/68 testes** em 11 arquivos, build+smoke).
 
 ## 1. Estado funcional do produto
-A Fase B está completa: um cliente físico escaneia o QR da mesa, abre uma sessão de verdade, vê o cardápio real do restaurante (só o que está ativo e disponível) e monta um carrinho que sobrevive a recarregar a página. **Ainda não envia o pedido** — isso é o M8, que também é o primeiro milestone crítico da Fase C (dinheiro/comanda, 3 frentes obrigatórias).
+Pela primeira vez um pedido de verdade pode nascer: o cliente monta o carrinho (M7) e envia; o servidor trava o preço, roteia os itens para a estação certa (cozinha/bar/...) e grava a cobrança no ledger — tudo de forma que um double-tap ou um timeout com retry nunca duplica o pedido, mesmo sob concorrência real. **Ainda não existe tela nenhuma que leia esse pedido** (nem KDS, nem acompanhamento do cliente) — isso é o M9/M10.
 
 ## 2. Estado por módulo
 | Módulo | Estado | Observação |
 |--------|--------|------------|
-| identity (login, sessão, permissão, dispositivo, PIN) | **funcional (M1–M3)** | — |
-| `apps/web` (shell, login, design system) | **funcional (M4/M4.1)** | — |
-| catálogo (estações, categorias, produtos) | **funcional (M5)** | modificadores: API pronta, sem UI |
-| mesas, áreas, sessão de mesa | **funcional (M6)** | — |
-| **cardápio do cliente + carrinho** | **funcional (M7)** | carrinho local; nenhum pedido é criado ainda |
-| criação de pedido / ledger / tickets | não iniciado | **M8 — crítico, 3 frentes** |
-| KDS em tempo real (SSE) | não iniciado | M9 |
+| identity, catálogo, mesas/sessão, cardápio do cliente | **funcionais (M1–M7)** | — |
+| **criação de pedido** (idempotente, preço do servidor, ticket, ledger) | **funcional (M8)** | sem tela de leitura ainda |
+| KDS (ler/atualizar ticket em tempo real) | não iniciado | **M9** |
+| acompanhamento do cliente / confirmação de pedido | não iniciado | M10 |
+| cancelamento / pedido pela equipe (UI) | API pronta desde M8 (`orders.create.on_behalf_of_table`), sem UI | M11 |
 | caixa / pagamentos | não iniciado | Fase D |
 
 ## 3. Ambiente conhecido
-Sem mudança (Docker local com falha, ENV-1; workspace OneDrive, ENV-5; ENV-6 recorrente, sempre pego antes do push). **Modo de execução hands-off** desde 2026-09-10 (pedido do Victor): merge após CI verde não espera confirmação; só bloqueio real interrompe a execução.
+Sem mudança (Docker local com falha, ENV-1; workspace OneDrive, ENV-5; ENV-6 recorrente). Execução hands-off desde 2026-09-10.
 
-## 4. Evidências do M7 (resumo; detalhes em `QA_LEDGER.md`)
-- `GET /public/:tenantSlug/catalog`: só categoria ativa + produto ativo e disponível, roda dentro de `withTenant()` normal (tenant resolvido pelo slug — mesmo padrão do M6, `resolveTenantBySlug` extraído para reaproveitar entre módulos).
-- **63/63 testes de integração verdes** (60 de M1–M6 + 3 novos M7): produto esgotado/desativado nunca aparece na leitura pública; isolamento entre tenants; slug inexistente → 404.
-- Carrinho (Zustand + `persist`, versão confirmada via npm antes de instalar — regra 12): um store por sessão de mesa, `Idempotency-Key` gerada ao montar (pronta para o M8 consumir).
-- **E2E manual real** (browser, servidor Node simulando as rotas públicas — sem Postgres local): sessão abre, cardápio carrega, adicionar item atualiza contador e CTA do rodapé, total correto, **carrinho sobrevive a reload completo** (prova real do `persist`, não só "parece que sim"). Mobile (375px) e desktop.
-- **Escopo cortado conscientemente:** sem SSE/realtime (infraestrutura é do M9) e sem modificadores na tela do cliente (M5 não tem UI de modificador nem no admin ainda).
+## 4. Evidências do M8 (resumo; detalhes em `QA_LEDGER.md`, decisão em `DECISIONS.md` ADR-032)
+- Reaproveitadas `idempotency_keys` e `domain_events` (existiam desde o M1, nunca usadas).
+- Idempotência real via `INSERT ... ON CONFLICT DO NOTHING` (não duas transações separadas como no M6 — aqui o `ON CONFLICT` não aborta a transação, então dá pra continuar na mesma). `apps/api/src/lib/idempotency.ts` reaproveitável para pagamento/cancelamento depois.
+- **68/68 testes de integração verdes** (63 de M1–M7 + 5 novos M8): fluxo feliz com preço/ledger/ticket conferidos por consulta independente; tudo-ou-nada em item indisponível; idempotência nos 3 casos (repetição, corpo diferente → 409, **concorrência real via `Promise.all`** → nunca 2 pedidos).
+- **Bug real de teste pego pela própria CI** (não de produção): sufixo "único" dos nomes de teste usava `newId().slice(0,8)` — mas isso é o TIMESTAMP de um UUIDv7 (quase constante dentro de uma execução), não a parte aleatória. Corrigido para `.slice(-8)` (cauda aleatória).
+- **Escopo cortado conscientemente:** `sequence_number` é contador simples (sem reset por dia operacional); sem modificador no item; sem KDS/pagamento.
 
 ## 5. Decisões que não podem ser esquecidas
-**ADR-025** (`devices`/`pairing_codes` sem RLS). **ADR-030** (M5: `selfLookupPolicy`). **ADR-031** (M6: `guests` sem RLS; cookie opaco sem lib nova; concorrência exige transações separadas). Nenhum ADR novo no M7 (decisões foram de escopo, não de arquitetura — registradas no `ACTIVE_PLAN.md` do M7).
+**ADR-025** (`devices` sem RLS). **ADR-030** (`selfLookupPolicy`). **ADR-031** (M6: `guests` sem RLS; concorrência exige transações separadas quando há exceção que aborta). **ADR-032** (M8: idempotência via `ON CONFLICT DO NOTHING` na MESMA transação — padrão diferente do M6 porque aqui não há exceção abortando; `sequence_number` simplificado).
 
 ## 6. Perguntas abertas para o Victor
 Sem mudança — ver `PRODUCT_CONTEXT.md §2`.
@@ -43,4 +41,4 @@ Sem mudança — ver `PRODUCT_CONTEXT.md §2`.
 - Decidir se torna o repositório privado (ainda pendente desde o bootstrap).
 
 ## 8. Próximo passo exato
-Executar o **M8** conforme `docs/ACTIVE_PLAN.md`: `POST /v1/orders` idempotente (cliente e staff), snapshot de preço, roteamento em tickets de produção por estação, ledger `item_charge`, eventos `order_events` + outbox `domain_events`. **Crítico — 3 frentes obrigatórias** (regra 2 do CLAUDE.md: dinheiro, comanda).
+Executar o **M9** conforme `docs/ACTIVE_PLAN.md`: SSE (`/v1/stream`) consumindo o outbox `domain_events` que o M8 já deixou pronto, tela de KDS por estação (iniciar/pronto/recall), polling de segurança, reconexão sem duplicar.
