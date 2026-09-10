@@ -46,17 +46,17 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **D — Caixa e financeiro** (em andamento). **Fase C completa** (M8–M11) — ciclo pedido→cozinha→salão fecha de ponta a ponta pela UI, menos dinheiro trocando de mãos. Milestone concluído e mergeado: **M12 Ledger, taxas, couvert, descontos**, 2026-09-10 — a comanda já sabe calcular o próprio total (`GET /v1/tabs/:id/bill`). Próximo: **M13 — Sessão de caixa e pagamentos**.
-- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6, padrão estrutural do ambiente); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (10+ bugs/gaps reais entre M0–M12).
+- Fase: **D — Caixa e financeiro** (em andamento). **Fase C completa** (M8–M11) — ciclo pedido→cozinha→salão fecha de ponta a ponta pela UI, menos dinheiro trocando de mãos. Milestone concluído e mergeado: **M13 Sessão de caixa e pagamentos**, 2026-09-10 — dá para abrir caixa e registrar pagamento (nunca excede o saldo, concorrência real provada) contra a comanda. Próximo: **M14 — Fechamento de caixa e relatórios**.
+- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6, padrão estrutural do ambiente; aconteceu de novo no meio do M13, pego antes do push); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (11+ bugs/gaps reais entre M0–M13, incluindo uma regressão de teste pega na própria CI do M13).
 - **Modo de execução: hands-off desde 2026-09-10** — o Victor pediu para não pausar pedindo "posso seguir?"/"posso mergear?"; merge após CI verde acontece direto, só bloqueio real interrompe (regra 4 do CLAUDE.md).
-- Branch: `main`. Último commit: `6fcb18e` (merge PR #21, M12). CI verde nos 3 jobs (integração Postgres: `billing.test.ts` novo, 8 testes; build+smoke).
-- **Confirmado pelo Victor (2026-09-10):** pagamento do Bella III continua na maquininha física, fora do sistema — ADMIN dá baixa manual. Sem integração de PSP/TEF no M13 nem depois (`docs/PRODUCT_CONTEXT.md §2` Q6).
-- Último gate aprovado: G0–G3 (M0–M12), G4 (M10), G5 (UX/mobile), G6 (isolamento/autenticação/permissão), **G7 dinheiro/comanda** (M8 criação, M11 cancelamento, M12 ledger completo/taxas/couvert/desconto). G8 (KDS/realtime, M9). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
+- Branch: `main`. Último commit: `0c600fe` (merge PR #22, M13). CI verde nos 3 jobs (integração Postgres: `payments.test.ts` novo, 11 testes; build+smoke).
+- **Confirmado pelo Victor (2026-09-10):** pagamento do Bella III continua na maquininha física, fora do sistema — ADMIN dá baixa manual. Sem integração de PSP/TEF, aplicado desde o M13 (`docs/PRODUCT_CONTEXT.md §2` Q6).
+- Último gate aprovado: G0–G3 (M0–M13), G4 (M10), G5 (UX/mobile), G6 (isolamento/autenticação/permissão), **G7 dinheiro/comanda/caixa** (M8 criação, M11 cancelamento, M12 ledger completo, M13 pagamento/caixa). G8 (KDS/realtime, M9). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
 - Bloqueios: nenhum.
 
 ## Próximo passo exato
 
-Executar o **M13** conforme `docs/ACTIVE_PLAN.md`: `cash_sessions`/`cash_registers`/`payments` (tabelas novas + migration), abrir sessão de caixa (`cash.open`), registrar pagamento manual contra a comanda (`payments.record`, multi-forma, nunca excede o saldo) e estornar pagamento (`payments.void`). Crítico — 3 frentes.
+Executar o **M14** conforme `docs/ACTIVE_PLAN.md`: `cash_movements` (sangria/suprimento) e `cash_divergences` (schema novo), fechar sessão de caixa (`cash.close` — contado vs. esperado por forma de pagamento, divergência sempre registrada, nunca ajustada em silêncio), resumo do turno. Crítico — 3 frentes.
 
 ## Arquitetura atual (resumo; detalhes em `docs/ARCHITECTURE.md`)
 
