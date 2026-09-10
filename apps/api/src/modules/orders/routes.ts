@@ -3,14 +3,14 @@ import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Db } from '@bella/db';
 import { schema, withTenant } from '@bella/db';
-import { createOrderSchema } from '@bella/contracts';
+import { cancelOrderItemSchema, createOrderSchema } from '@bella/contracts';
 import { AppError } from '../../lib/errors';
 import { parseCookies } from '../../lib/cookies';
 import type { Auth } from '../identity/auth';
-import { requirePermission } from '../identity/require-permission';
+import { requirePermission, resolveActor } from '../identity/require-permission';
 import { GUEST_SESSION_COOKIE } from '../tables/routes';
 import { resolveGuestActor } from '../tables/service';
-import { createOrder, listOrdersForTableSession, reviewOrder } from './service';
+import { cancelOrderItem, createOrder, listOrdersForTableSession, reviewOrder } from './service';
 
 export interface OrderRoutesDeps {
   db: Db;
@@ -166,6 +166,33 @@ export async function orderRoutes(app: FastifyInstance, deps: OrderRoutesDeps): 
         'reject',
       );
       return { order };
+    },
+  );
+
+  // Cancelamento (M11) — a permissão depende do `stage` do corpo (antes/depois da
+  // produção são chaves diferentes, `orders.cancel.{before,after}_production`), por
+  // isso resolve o ator manualmente em vez de um `requirePermission` fixo no preHandler.
+  app.patch<{ Params: { orderId: string; itemId: string } }>(
+    '/v1/orders/:orderId/items/:itemId/cancel',
+    async (request) => {
+      const actor = await resolveActor(request, db, auth);
+      const body = parseOrThrow(cancelOrderItemSchema, request.body);
+      const permissionKey =
+        body.stage === 'before_production'
+          ? ('orders.cancel.before_production' as const)
+          : ('orders.cancel.after_production' as const);
+      if (!actor.permissions.includes(permissionKey)) {
+        throw new AppError('PERMISSION_DENIED', `Permissão necessária: ${permissionKey}.`);
+      }
+      const item = await cancelOrderItem(
+        db,
+        actor.tenantId,
+        request.params.orderId,
+        request.params.itemId,
+        { type: 'user', userId: actor.userId },
+        body,
+      );
+      return { item };
     },
   );
 }

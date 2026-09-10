@@ -362,3 +362,29 @@ export async function transitionServiceRequest(
     return current;
   });
 }
+
+// --- Comandas abertas (M11, pedido pela equipe) ------------------------------
+
+export interface OpenTabSummary {
+  tabId: string;
+  tabLabel: string;
+  tableId: string;
+  tableLabel: string;
+}
+
+/** Comandas abertas do tenant, com o rótulo da mesa — para o staff escolher onde lançar um pedido. */
+export async function listOpenTabs(db: Db, tenantId: string): Promise<OpenTabSummary[]> {
+  return withTenant(db, tenantId, (tx) =>
+    tx
+      .select({
+        tabId: schema.tabs.id,
+        tabLabel: schema.tabs.label,
+        tableId: schema.tableSessions.tableId,
+        tableLabel: schema.tables.label,
+      })
+      .from(schema.tabs)
+      .innerJoin(schema.tableSessions, eq(schema.tableSessions.id, schema.tabs.tableSessionId))
+      .innerJoin(schema.tables, eq(schema.tables.id, schema.tableSessions.tableId))
+      .where(and(eq(schema.tabs.tenantId, tenantId), eq(schema.tabs.status, 'open'))),
+  );
+}

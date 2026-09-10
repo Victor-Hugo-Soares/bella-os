@@ -368,3 +368,32 @@ Frentes (`apps/api/test/integration/{service-requests,kds}.test.ts`, Postgres re
 
 ### 2026-09-10 — M10 — `pnpm check` + build do monorepo — PASS
 `pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo `/admin/service-requests` (novo) no build de produção.
+
+### 2026-09-10 — M10 — Gate Git — PASS
+PR #17 (`claude/m10-tracking-calls` → `main`), CI remota verde nos 3 jobs (80/80 testes), merge commit `95103fe`.
+
+---
+
+## Milestone M11 — Cancelamentos e pedido pela equipe (fecha a Fase C)
+
+### 2026-09-10 — M11 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M11) registrou o corte de escopo antes de codar: transferência/junção de mesa (`table_session_transfers`) fica fora deste milestone — problema à parte de verdade (concorrência própria), não bloqueia cancelamento nem pedido pela equipe. Tratado como **crítico** (regra 2: "cancelamento" listado explicitamente) — 3 frentes exigidas. Gate de Plano respondido no próprio arquivo.
+
+### 2026-09-10 — M11 — G2 Dados/contratos — PASS
+- [schema] `order_items` ganha `cancelled_at`/`cancel_reason`/`cancel_stage`/`charge_on_cancel` (migration `0009`, reservados desde o M8).
+- [API] `PATCH /v1/orders/:orderId/items/:itemId/cancel` — permissão resolvida dinamicamente pelo `stage` do corpo (`orders.cancel.before_production` vs. `orders.cancel.after_production`, chaves diferentes), não um `requirePermission` fixo. `GET /v1/tabs/open` (novo, necessário para a tela de pedido pela equipe escolher onde lançar).
+
+### 2026-09-10 — M11 — G3/G7 Feature e dinheiro/cancelamento (CRÍTICO, 3 frentes) — PASS
+Frentes (`apps/api/test/integration/cancel-order.test.ts`, Postgres real na CI):
+1. **Cancelar antes da produção**: reversão TOTAL sempre — saldo da comanda (soma do ledger) volta a 0, consultado independentemente. Cancelar duas vezes é idempotente — a segunda chamada NÃO gera um segundo `item_reversal` (dinheiro duplicado é o pior bug possível aqui; testado explicitamente, não só assumido).
+2. **Cancelar depois da produção** (item avançado de verdade via KDS, `start`, antes do teste): `chargeOnCancel=true` → SEM reversão, saldo continua cobrado; `chargeOnCancel=false` → COM reversão, saldo volta a 0. Os dois casos testados separadamente, cada um com sua própria consulta independente ao ledger.
+3. **Negativo/isolamento**: papel sem `orders.cancel.before_production` → 403 (positivo: `waiter`, que tem a permissão, funciona); item de outro tenant → 404, nunca vaza.
+- **Total: 7 testes novos.**
+
+### 2026-09-10 — M11 — G5 UX (staff) — PASS
+- [visual, browser real] `/admin/staff-order` (novo): estado de erro correto sem API respondendo (mesmo padrão de loading/erro corrigido no M10).
+- KDS (`/kds`): item cancelado ganha destaque visual (tachado, fundo vermelho suave, rótulo "CANCELADO"); SSE já escuta `item.cancelled` além de `order.created` para atualizar em tempo real.
+- **Limitação real registrada:** sem Postgres local, o fluxo completo (staff cancela → KDS mostra alerta ao vivo) não foi testado com dados reais de ponta a ponta — só via CI (Postgres real, por partes).
+
+### 2026-09-10 — M11 — `pnpm check` + build do monorepo — PASS
+`pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo `/admin/staff-order` (novo) no build de produção.
