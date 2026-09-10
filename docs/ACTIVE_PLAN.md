@@ -27,8 +27,13 @@ O Victor ainda não confirmou como o caixa físico do Bella III opera hoje. `ten
 2. Integração: `GET /bill` chamado duas vezes não duplica taxa/couvert; total reconstruído bate com soma manual do ledger (consulta independente).
 3. Negativo: desconto sem `discounts.apply` → 403; desconto maior que o total → rejeitado ou limitado a zero (decisão a registrar).
 
-### Gate de Plano (a responder no início da execução do M12)
-A preencher no início da implementação.
+### Gate de Plano (respondido no início da execução do M12)
+1. **Confirmação do Victor (2026-09-10):** pagamento continua na maquininha física, fora do sistema; ADMIN dá baixa manual. Não muda nada do M12 (que não mexe em pagamento), só remove a pendência antes do M13 (ver `PRODUCT_CONTEXT.md §2` Q6, `PROJECT_STATE.md §6`).
+2. **`packages/domain/src/totals.ts` é puro de verdade:** recebe os componentes já somados (`itemsTotalCents`, `discountsCents`, `serviceFeeCents`, `couvertCents`, `adjustmentsCents`, `paidTotalCents`) e só faz a aritmética do `DOMAIN_MODEL.md §4`; quem soma o ledger é o serviço da API. Funções auxiliares puras separadas para calcular o valor a lançar (`computeServiceFeeCents`, reaproveitando `applyBps`; `computeCouvertCents` por modo).
+3. **`items_total` reconstruído do ledger, não da tabela `order_items`:** soma de `item_charge` + `item_reversal` (já sinalizados) cobre o efeito de cancelamentos com e sem cobrança sem duplicar a regra do M11 — mesmo princípio de "consulta independente ao ledger" usado nos testes do M11.
+4. **Lançamento automático de taxa/couvert é travado na primeira consulta e nunca recalculado depois** (é exatamente o que o plano original pede: "grava na primeira vez que a conta é pedida"). Concorrência: `SELECT ... FOR UPDATE` na `tab` (mesmo padrão do M8) + checagem de existência na mesma transação antes de inserir — duas chamadas simultâneas a `GET /bill` na mesma comanda nunca duplicam o lançamento.
+5. **Desconto maior que o saldo atual de itens é REJEITADO** (`VALIDATION_ERROR`), nunca limitado a zero em silêncio — consistente com o princípio 3 de `PRODUCT_CONTEXT.md §6` ("nada silencioso"). Desconto percentual é calculado em bps (`applyBps`) sobre o total de itens líquido de descontos já aplicados (não sobre o total original, para não empilhar desconto sobre desconto já descontado).
+6. **Permissão de `GET /v1/tabs/:id/bill`:** nenhuma chave de `discounts`/`payments` cabe aqui (é leitura, não mutação sensível) e restringir a `tables.manage` excluiria o `cashier` (que não tem essa chave, mas precisa ver a conta para fechar comanda). Decisão: qualquer sessão de staff autenticada no tenant (`requireAnySession`) pode ler o `bill` — mesmo padrão de `GET /v1/me/tenants` (ADR-030), que também não é uma ação de negócio sensível. `POST /discounts` continua exigindo `discounts.apply`.
 
 ## Próximos milestones (resumo; detalhes em `ROADMAP.md`)
 M13 sessão de caixa e pagamentos → M14 fechamento de caixa e relatórios → M15 divisão de conta e Golden Journey completa (fim da Fase D).

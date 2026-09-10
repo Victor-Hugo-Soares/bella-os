@@ -397,3 +397,31 @@ Frentes (`apps/api/test/integration/cancel-order.test.ts`, Postgres real na CI):
 
 ### 2026-09-10 — M11 — `pnpm check` + build do monorepo — PASS
 `pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo `/admin/staff-order` (novo) no build de produção.
+
+### 2026-09-10 — M11 — Gate Git — PASS
+PR #19 (`claude/m11-cancellations-staff-order` → `main`), CI remota verde nos 3 jobs (87/87 testes), merge commit `2a2ecaf`. **Fase C completa.** *(Registro retroativo — esta entrada tinha ficado faltando na sessão do M11; corrigida ao abrir o M12, `CLAUDE.md` regra "fonte de verdade documental".)*
+
+---
+
+## Milestone M12 — Ledger, taxas, couvert, descontos (abre a Fase D)
+
+### 2026-09-10 — M12 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M12) respondeu o Gate de Plano no início da implementação: `totals.ts` puro reconstrói tudo a partir do ledger (não de `order_items`, evitando reimplementar a regra de cancelamento do M11); lock-in automático de taxa/couvert só na primeira consulta (nunca recalculado depois, conforme o plano original); desconto maior que o saldo é rejeitado, nunca limitado a zero em silêncio; `GET /bill` liberado a qualquer sessão de staff (`requireAnySession`) por não existir uma única chave de permissão que cubra cashier+waiter+manager+owner e por não ser uma ação sensível como desconto/pagamento. Tratado como **crítico** (regra 2: "dinheiro" e "comanda" listados explicitamente) — 3 frentes exigidas. Também registrada a confirmação do Victor sobre o modelo de pagamento do Bella III (Q6, `PRODUCT_CONTEXT.md`), que não muda o escopo do M12 mas remove a pendência antes do M13.
+
+### 2026-09-10 — M12 — G2 Dados/contratos — PASS
+- [schema] Nenhuma migration nova — `tenant_settings` (M1) e o `CHECK` de `ledger_entries.type` (M1) já cobriam `service_fee`/`couvert`/`discount` desde o início; M12 é só a primeira feature a usá-los de verdade.
+- [contracts] `packages/contracts/src/billing.ts`: `applyDiscountSchema` (união discriminada `percentage`/`fixed`, `reason` obrigatório).
+- [domain] `packages/domain/src/totals.ts`: `computeBillTotals` (fórmula pura do `DOMAIN_MODEL.md §4`), `computeServiceFeeCents` (reaproveita `applyBps`/`round_half_even`, nunca reimplementa), `computeCouvertCents` (3 modos).
+
+### 2026-09-10 — M12 — G3/G7 Feature e dinheiro/ledger (CRÍTICO, 3 frentes) — PASS
+Frentes:
+1. **[unit]** `packages/domain/test/totals.test.ts` (12 testes): tabela de casos de centavos para `service_fee`/`couvert` (`off`/`per_guest`/`per_tab`, `guestCount` nulo tratado como 0), `grand_total`/`balance` incluindo o caso "reversão total zera itemsTotal", rejeição de entrada não-inteira.
+2. **[integração, Postgres real, CI]** `apps/api/test/integration/billing.test.ts`: `GET /bill` trava a taxa de serviço (10% do seed) na primeira consulta e o total bate com uma soma independente do ledger (consulta direta, nunca via API); segunda consulta — e duas chamadas concorrentes reais via `Promise.all` — não duplicam o lançamento (confirmado contando linhas do ledger, não só comparando o total devolvido); desconto percentual materializa `ledger_entries` negativo e a taxa de serviço recalculada na consulta seguinte já usa o líquido pós-desconto.
+3. **[negativo/isolamento]** desconto maior que o saldo de itens → 400, sem gravar nada no ledger; papel sem `discounts.apply` → 403 (positivo: `owner`, que tem a permissão); comanda de outro tenant → 404 tanto em `GET /bill` quanto em `POST /discounts`, nunca vaza.
+- **Total: 8 testes de integração novos + 12 unitários novos.**
+
+### 2026-09-10 — M12 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
+Todos verdes no monorepo inteiro (testes de integração exigem Postgres real — não disponível localmente, ENV-1 — rodam na CI). Sem migration para gerar/checar neste milestone.
+
+### 2026-09-10 — M12 — Gate Git — PENDENTE
+Branch `claude/m12-totals-ledger` pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar (mesmo padrão dos milestones anteriores).

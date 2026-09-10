@@ -13,6 +13,7 @@ import { tenantsRoutes } from './modules/identity/tenants-routes';
 import { catalogRoutes } from './modules/catalog/routes';
 import { tablesRoutes } from './modules/tables/routes';
 import { orderRoutes } from './modules/orders/routes';
+import { billingRoutes } from './modules/billing/routes';
 import { kdsRoutes } from './modules/kds/routes';
 import { realtimeRoutes } from './modules/realtime/routes';
 
@@ -96,6 +97,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       webOriginIsHttps: config.NODE_ENV === 'production',
     });
     await app.register(orderRoutes, { db: db.db, auth });
+    await app.register(billingRoutes, { db: db.db, auth });
     await app.register(kdsRoutes, { db: db.db, auth });
     await app.register(realtimeRoutes, { db: db.db });
   }

@@ -5,3 +5,4 @@ export * from './tables';
 export * from './orders';
 export * from './service-requests';
 export * from './cancel-order-item';
+export * from './billing';
