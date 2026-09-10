@@ -7,3 +7,4 @@ export * from './platform-ops';
 export * from './auth';
 export * from './devices';
 export * from './catalog';
+export * from './tables';
