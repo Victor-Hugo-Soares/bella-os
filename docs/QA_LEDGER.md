@@ -301,3 +301,35 @@ Frentes (`apps/api/test/integration/orders.test.ts`, Postgres real na CI, `bella
 
 ### 2026-09-10 — M8 — `pnpm check` + build do monorepo — PASS
 `pnpm check` e `pnpm build` verdes no monorepo inteiro.
+
+### 2026-09-10 — M8 — Gate Git — PASS
+PR #13 (`claude/m8-orders` → `main`), CI remota verde nos 3 jobs (68/68 testes), merge commit `123537a`.
+
+---
+
+## Milestone M9 — KDS em tempo real (Fase C)
+
+### 2026-09-10 — M9 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M9) registrou o escopo antes de codar: SSE mínimo viável (canal único `orders`, polling do outbox em vez de LISTEN/NOTIFY), sem alerta de cancelamento (M11 não existe ainda), atribuição de estação ao KDS só na hora do pareamento (reatribuição fica para depois). Gate de Plano respondido no próprio arquivo.
+
+### 2026-09-10 — M9 — G2/G3 Dados e feature — PASS
+- [schema] `pairing_codes.station_ids` (nova coluna, migration `0007`), propagada para `devices.station_ids` na troca do código — campo que já existia desde o M3, nunca preenchido até agora.
+- [API] `GET /v1/stream` (SSE), `GET /v1/kds/tickets`, `POST /v1/kds/tickets/:id/{start,ready,recall}` — todos autenticados por dispositivo (`X-Device-Token`, M3), nunca sessão de staff.
+- **Decisão de arquitetura registrada (ADR-033):** SSE via polling do outbox (não LISTEN/NOTIFY); token de dispositivo aceito por `?deviceToken=` só para o `EventSource` (que não permite headers customizados); bump de ticket via `UPDATE ... WHERE status = $antigo` (não `SELECT`+`UPDATE` separados) para a corrida entre dois KDS ser resolvida pelo próprio Postgres.
+- **Achado real de teste (pesquisa antes de codar, regra 12):** `fastify.inject()` não serve para testar um SSE de verdade (a injeção só devolve depois que a resposta termina, e um stream nunca termina sozinho) — `realtime.test.ts` sobe o servidor de verdade (`app.listen()`) e lê com `fetch` real, abortando a conexão depois de confirmar o evento.
+
+### 2026-09-10 — M9 — G4/G8 Integração cliente→cozinha e KDS — PASS
+Frentes (`apps/api/test/integration/{kds,realtime}.test.ts`, Postgres real na CI):
+- KDS só vê tickets das próprias estações (dispositivo pareado para uma estação inexistente não vê o ticket real).
+- Transição inválida (`ready` antes de `start`) → `409 INVALID_TRANSITION`; sequência válida (`start` → `ready`) funciona e reflete no corpo devolvido.
+- **Bump idempotente:** chamar `/start` duas vezes no mesmo ticket devolve 200 as duas vezes, sem erro — mesmo comportamento exigido pelo `DOMAIN_MODEL.md §2.6` para dois KDS bumpando quase ao mesmo tempo.
+- Dispositivo de outra estação não consegue transicionar um ticket que não é dele → `403`.
+- **SSE real:** conexão aberta ANTES do pedido ser criado recebe o evento `order.created` pelo stream (não é replay inicial) — provado lendo a resposta com `fetch` real contra um servidor `listen()` de verdade, não `fastify.inject()`.
+- **Total: 9 testes novos** (5 em `kds.test.ts`, 1 em `realtime.test.ts` + reaproveitamento do fluxo de pedido do M8 dentro dos próprios testes).
+
+### 2026-09-10 — M9 — G5 UX (KDS) — PASS
+- [visual, browser real] `/kds`: tela de pareamento renderiza (fonte grande, botão de alvo de toque generoso); após simular um token salvo, transiciona para o quadro de tickets e mostra o estado de erro corretamente quando a API não responde (sem crash de render). `/admin/devices`: formulário de seleção de estação + geração de código renderiza.
+- **Limitação real registrada:** sem Postgres local (ENV-1), não foi possível testar visualmente o fluxo completo (pareamento real → ticket aparecendo → bump) numa tela real — só via CI (Postgres real) e inspeção de código/estados de erro no browser.
+
+### 2026-09-10 — M9 — `pnpm check` + build do monorepo — PASS
+`pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo `/kds` (conteúdo real, antes placeholder do M4) e `/admin/devices` (novo) no build de produção.

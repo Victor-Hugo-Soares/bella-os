@@ -65,6 +65,9 @@ export const pairingCodes = pgTable(
     code: text('code').notNull(),
     deviceKind: text('device_kind').notNull(),
     deviceName: text('device_name').notNull(),
+    // Estação(ões) do dispositivo KDS (M9) — nulo para outros `deviceKind`. Copiado
+    // para `devices.station_ids` na troca do código (exchangePairingCode).
+    stationIds: jsonb('station_ids'),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     usedAt: timestamp('used_at', { withTimezone: true }),
     createdByMembershipId: uuid('created_by_membership_id').notNull(),
