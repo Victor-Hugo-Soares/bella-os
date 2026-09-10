@@ -3,3 +3,4 @@ export * from './id';
 export * from './permissions';
 export * from './pin';
 export * from './device-token';
+export * from './totals';
