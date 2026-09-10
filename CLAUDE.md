@@ -46,17 +46,17 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **D — Caixa e financeiro** (em andamento). **Fase C completa** (M8–M11) — ciclo pedido→cozinha→salão fecha de ponta a ponta pela UI, menos dinheiro trocando de mãos. Milestone concluído e mergeado: **M13 Sessão de caixa e pagamentos**, 2026-09-10 — dá para abrir caixa e registrar pagamento (nunca excede o saldo, concorrência real provada) contra a comanda. Próximo: **M14 — Fechamento de caixa e relatórios**.
-- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6, padrão estrutural do ambiente; aconteceu de novo no meio do M13, pego antes do push); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (11+ bugs/gaps reais entre M0–M13, incluindo uma regressão de teste pega na própria CI do M13).
+- Fase: **D — Caixa e financeiro** (quase completa). **Fase C completa** (M8–M11) — ciclo pedido→cozinha→salão fecha de ponta a ponta pela UI, menos dinheiro trocando de mãos. Milestone concluído e mergeado: **M14 Fechamento de caixa e relatórios**, 2026-09-10 — sangria/suprimento e fechamento de sessão com contagem vs. esperado, divergência sempre registrada. Próximo: **M15 — Divisão de conta e Golden Journey completa** (fecha a Fase D).
+- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6, padrão estrutural do ambiente); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (12+ bugs/gaps reais entre M0–M14, incluindo regressões de teste pegas na própria CI dos M13 e M14).
 - **Modo de execução: hands-off desde 2026-09-10** — o Victor pediu para não pausar pedindo "posso seguir?"/"posso mergear?"; merge após CI verde acontece direto, só bloqueio real interrompe (regra 4 do CLAUDE.md).
-- Branch: `main`. Último commit: `0c600fe` (merge PR #22, M13). CI verde nos 3 jobs (integração Postgres: `payments.test.ts` novo, 11 testes; build+smoke).
+- Branch: `main`. Último commit: `ba7c790` (merge PR #23, M14). CI verde nos 3 jobs (integração Postgres: `cash-close.test.ts` novo, 5 testes; build+smoke).
 - **Confirmado pelo Victor (2026-09-10):** pagamento do Bella III continua na maquininha física, fora do sistema — ADMIN dá baixa manual. Sem integração de PSP/TEF, aplicado desde o M13 (`docs/PRODUCT_CONTEXT.md §2` Q6).
-- Último gate aprovado: G0–G3 (M0–M13), G4 (M10), G5 (UX/mobile), G6 (isolamento/autenticação/permissão), **G7 dinheiro/comanda/caixa** (M8 criação, M11 cancelamento, M12 ledger completo, M13 pagamento/caixa). G8 (KDS/realtime, M9). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
+- Último gate aprovado: G0–G3 (M0–M14), G4 (M10), G5 (UX/mobile), G6 (isolamento/autenticação/permissão), **G7 dinheiro/comanda/caixa** (M8 criação, M11 cancelamento, M12 ledger completo, M13 pagamento, M14 fechamento de caixa). G8 (KDS/realtime, M9). Gate de Handoff Fable → Sonnet: PASS (`docs/PROJECT_STATE.md §8`, sessão de bootstrap).
 - Bloqueios: nenhum.
 
 ## Próximo passo exato
 
-Executar o **M14** conforme `docs/ACTIVE_PLAN.md`: `cash_movements` (sangria/suprimento) e `cash_divergences` (schema novo), fechar sessão de caixa (`cash.close` — contado vs. esperado por forma de pagamento, divergência sempre registrada, nunca ajustada em silêncio), resumo do turno. Crítico — 3 frentes.
+Executar o **M15** conforme `docs/ACTIVE_PLAN.md`: `POST /v1/tabs/:id/close` (só com saldo 0, grava `tab_closures`, fecha a comanda de fato), `GET /v1/tabs/:id/split` (divisão igual entre N pessoas, `splitEvenly` já existente), e um teste de Golden Journey ponta a ponta (cliente→cozinha→salão→caixa→fechamento numa mesma comanda). Crítico — 3 frentes. **Fecha a Fase D.**
 
 ## Arquitetura atual (resumo; detalhes em `docs/ARCHITECTURE.md`)
 
