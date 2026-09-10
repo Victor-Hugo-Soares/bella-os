@@ -2,21 +2,31 @@
 
 > Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.6/§4 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M15 (fechar comanda, divisão de conta, Golden Journey) está mergeado em `main` (commit `990dc83`, PR #24, CI verde de primeira). **Fase D completa.**
+> M15 (fechar comanda, divisão de conta, Golden Journey) está mergeado em `main` (commit `990dc83`, PR #24, CI verde de primeira). **Fase D completa.** Victor confirmou em 2026-09-10: cozinha por enquanto é só tela (Q7) — M16 "Impressão" do `ROADMAP.md` fica sem data, slot reaproveitado. Ordem escolhida por ele para a Fase E: relatório do dia → backup/restore → resiliência de conexão.
 
-## Sem milestone ativo — aguardando decisão do Victor sobre a Fase E
+## Milestone atual: **M16 — Relatório do dia operacional** (Fase E, reaproveitando o slot da impressão)
 
-A Fase D (M8–M15) fechou o ciclo operacional inteiro do restaurante, provado por um teste de Golden Journey real. O `ROADMAP.md` planeja a Fase E como:
+### Problema
+O M14 original (`ROADMAP.md`) previa "relatório do dia operacional (faturamento, ticket médio, mais vendidos, cancelamentos/descontos por operador)" e isso nunca foi entregue (`KNOWN_ISSUES.md` R-16). Toda a base de dados já existe (`order_items`, `order_events`, `ledger_entries`) — falta só a consulta.
 
-- **M16 — Impressão térmica** (agente local + fila): depende de Q7 (`PRODUCT_CONTEXT.md §2` — a cozinha quer papel além do KDS? qual impressora?), informação exclusiva do restaurante.
-- **M17 — Estoque, ficha técnica, CMV**: depende de dados reais de insumos/receitas do Bella III, que não existem no repositório ainda.
-- **M18 — Backup/restore testado + runbook de incidentes**: técnico, não depende do Victor.
-- **M19 — Relatórios avançados**: cabe aqui o que ficou faltando do M14 original (faturamento do dia, ticket médio, mais vendidos — ver `KNOWN_ISSUES.md` R-16); técnico, não depende do Victor, mas vale confirmar prioridade.
-- **M20 — Degradação/reconexão endurecida e testes de caos**: técnico, não depende do Victor.
+### Resultado esperado
+1. **`GET /v1/reports/daily?from=<ISO>&to=<ISO>`** (`reports.view`, permissão já existente desde o M2): faturamento (soma de `line_total_cents` de itens não cancelados ou cancelados com `charge_on_cancel`, por `orders.submitted_at` no intervalo), ticket médio (faturamento ÷ número de comandas distintas com pedido no intervalo), mais vendidos (top produtos por receita e quantidade), cancelamentos por operador (agrupado de `order_events` tipo `item.cancelled`), descontos por operador (agrupado de `ledger_entries` tipo `discount`).
+2. Nomes de operador resolvidos via `users` (tabela global, sem RLS — consulta direta dentro da mesma transação).
 
-Regra 4 do `CLAUDE.md` (só parar por dúvida bloqueante, informação exclusiva do restaurante ou dependência externa comprovada) se aplica aqui: M16/M17 não dão pra planejar direito sem informação do Victor; M18/M19/M20 dariam, mas a ordem entre eles é uma escolha de prioridade de produto, não uma decisão técnica óbvia. Por isso a sessão parou no fim natural da Fase D em vez de escolher um desses cinco milestones sozinha.
+### Riscos
+- **"Dia operacional" com virada às 05:00 (`tenant_settings.business_day_cutoff`, Q9) exigiria matemática de fuso horário correta** — sem biblioteca de timezone no projeto hoje, implementar isso à mão é risco real de bug silencioso num relatório financeiro. Decisão: `from`/`to` são timestamps ISO explícitos (quem chama decide o intervalo), não um cálculo automático de "hoje" no fuso do tenant. Vira dívida consciente, igual o próprio comentário do M8 já previa ("entra quando um relatório diário real precisar disso") — a hora certa de resolver isso é quando existir uma TELA real de relatório, com biblioteca de timezone testada, não agora só pela API.
+- **Contagem duplicada de operador**: um mesmo usuário pode ter várias entradas no período — agrupar sempre por `userId`, nunca assumir 1 evento = 1 operador único no dia.
 
-**Quando o Victor decidir a prioridade:** reescrever este arquivo com o Gate de Plano do milestone escolhido e seguir o mesmo loop dos milestones anteriores.
+### Testes (2 frentes — normal, não críticas: é leitura, não mutação de dinheiro)
+1. Integração: comanda com item cancelado (`charge_on_cancel=false`) não conta no faturamento; comanda com `charge_on_cancel=true` conta; desconto aplicado aparece agrupado no operador certo; cancelamento aparece agrupado no operador certo; ticket médio bate com cálculo manual.
+2. Negativo: sem `reports.view` → 403; isolamento cross-tenant (dados de outro tenant nunca aparecem).
+
+### Gate de Plano (respondido no início da execução do M16)
+1. **Nenhuma tabela nova, nenhuma migration** — é só consulta sobre dados já existentes.
+2. **Sem cálculo automático de "dia operacional"** (ver Riscos) — `from`/`to` explícitos no query string, validados com `z.iso.datetime()` (já usado em `health.ts`).
+3. **Faturamento usa a mesma regra de `items_total` do `computeBill`** (M12): item conta se não cancelado OU cancelado com `charge_on_cancel=true` — nunca reimplementar essa regra do zero, replicar exatamente.
+4. **Permissão: `reports.view`**, já existe desde o M2 (`owner`/`manager`/`cashier` têm; `waiter`/`kitchen` não) — nenhuma chave nova necessária.
+5. **Agrupamento por operador feito em JavaScript, não em SQL**: `actor`/`created_by` são `jsonb`, e o volume de eventos por dia de um restaurante é pequeno o bastante para não justificar `GROUP BY` em JSON no Postgres — mesmo padrão de "buscar linhas e reduzir em código" já usado em `sumLedgerByTypes` (M12).
 
 ---
 

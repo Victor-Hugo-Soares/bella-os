@@ -516,3 +516,28 @@ PR #24 (`claude/m15-tab-close-golden-journey` → `main`), CI remota verde nos 3
 
 ### 2026-09-10 — Fase D — Gate de saída — PASS (com lacuna registrada)
 "Totais reconstruíveis; permissões e concorrência testadas; fechamento sem conta manual" (`ROADMAP.md`) — todos atendidos e provados (M12–M15). **Lacuna real registrada, não esquecida:** o `ROADMAP.md` original previa "relatório do dia operacional" dentro do M14; não foi implementado — ver `KNOWN_ISSUES.md` R-16. Não bloqueia a Fase D (o gate de saída formal não exige relatórios), mas fica pendente antes de prometer isso ao Victor.
+
+---
+
+## Fase E (início) — M16 — Relatório do dia operacional
+
+### 2026-09-10 — M16 — Confirmação do Victor
+Q7 (`PRODUCT_CONTEXT.md §2`): cozinha por enquanto é só tela, sem impressora térmica. M16 "Impressão" do `ROADMAP.md` fica sem data; slot reaproveitado para o relatório do dia (fecha R-16). Victor também confirmou a ordem da Fase E: relatório do dia → backup/restore → resiliência de conexão.
+
+### 2026-09-10 — M16 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` respondeu o Gate de Plano: sem tabela/migration nova (só consulta); `from`/`to` explícitos no query string em vez de calcular "dia operacional" automaticamente (matemática de timezone sem biblioteca testada seria risco real num relatório financeiro — decisão consciente, revisitar quando existir tela real); faturamento replica exatamente a regra de `items_total` do `computeBill` (M12); permissão `reports.view` já existia desde o M2; agrupamento por operador feito em JS sobre `jsonb`, não em SQL. Tratado como **normal** (2 frentes) — é leitura, não mutação de dinheiro.
+
+### 2026-09-10 — M16 — G2/G3 Dados e feature — PASS
+- [contracts] `packages/contracts/src/reports.ts`: `dailyReportQuerySchema` (`z.iso.datetime()` + `refine` `from < to`). 3 testes unitários.
+- [API] `GET /v1/reports/daily?from=&to=` (`reports.view`): faturamento, ticket médio, mais vendidos (top 10 por receita), cancelamentos por operador (valor só conta se o item foi de fato revertido — `chargeOnCancel !== true`), descontos por operador. Nomes resolvidos via `users` (tabela global, sem RLS).
+- [integração, Postgres real, CI] `apps/api/test/integration/reports.test.ts` (2 testes): comanda com item cancelado antes da produção (sempre revertido) não conta no faturamento, item que ficaria fora do intervalo não aparece, desconto e cancelamento aparecem agrupados no operador certo com o valor exato, ticket médio bate com o cálculo manual; sem `reports.view` → 403.
+- **Total: 2 testes de integração novos + 3 unitários novos.**
+
+### 2026-09-10 — M16 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
+Todos verdes no monorepo inteiro. Sem migration (nenhuma tabela nova).
+
+### 2026-09-10 — M16 — Regressão pega pela CI (regra 3 do CLAUDE.md) — corrigida
+Primeira rodada de CI: o teste de faturamento esperava `3000` e recebeu `190600`. Diagnóstico: a janela usada era "últimos 60s até próximos 60s" — mas a suíte de integração inteira roda em menos de um minuto, e o tenant `bella` é reaproveitado por vários arquivos de teste (`payments.test.ts`, `golden-journey.test.ts`, `tab-close.test.ts`, ...); a janela larga capturou pedidos de OUTROS arquivos que rodaram segundos antes, não só do próprio teste. Não era bug de produção — a consulta fez exatamente o que devia com o intervalo que recebeu. Corrigido: `from`/`to` agora são capturados imediatamente antes/depois das próprias ações do teste (janela mínima, não "últimos N segundos"). Retestado — verde.
+
+### 2026-09-10 — M16 — Gate Git — PENDENTE
+Branch pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.
