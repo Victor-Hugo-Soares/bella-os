@@ -185,3 +185,45 @@ async function ticketRowToTicket(
     })),
   };
 }
+
+/**
+ * Tickets `ready` de TODAS as estações do tenant (M10, "expedição") — visão de staff,
+ * não de um KDS de estação específica; sem filtro de `stationIds` de propósito (quem
+ * leva à mesa precisa ver tudo pronto, não só de uma estação).
+ */
+export async function listReadyTicketsForTenant(db: Db, tenantId: string): Promise<Ticket[]> {
+  return withTenant(db, tenantId, async (tx) => {
+    const tickets = await tx
+      .select()
+      .from(schema.productionTickets)
+      .where(
+        and(
+          eq(schema.productionTickets.tenantId, tenantId),
+          eq(schema.productionTickets.status, 'ready'),
+        ),
+      );
+    if (tickets.length === 0) return [];
+    const items = await tx
+      .select()
+      .from(schema.orderItems)
+      .where(
+        inArray(
+          schema.orderItems.ticketId,
+          tickets.map((t) => t.id),
+        ),
+      );
+    return tickets.map((ticket) => ({
+      id: ticket.id,
+      orderId: ticket.orderId,
+      stationId: ticket.stationId,
+      status: ticket.status,
+      queuedAt: ticket.queuedAt.toISOString(),
+      startedAt: ticket.startedAt?.toISOString() ?? null,
+      readyAt: ticket.readyAt?.toISOString() ?? null,
+      recallCount: ticket.recallCount,
+      items: items
+        .filter((i) => i.ticketId === ticket.id)
+        .map((i) => ({ id: i.id, name: i.nameSnapshot, quantity: i.quantity, notes: i.notes })),
+    }));
+  });
+}

@@ -3,7 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChefHat, Clock, LayoutGrid, LogOut, Mail, UtensilsCrossed, User } from 'lucide-react';
+import {
+  Bell,
+  ChefHat,
+  Clock,
+  LayoutGrid,
+  LogOut,
+  Mail,
+  UtensilsCrossed,
+  User,
+} from 'lucide-react';
 import { BellaMark } from '@/components/bella-mark';
 import { ApiError, apiFetch, authFetch } from '@/lib/api';
 
@@ -143,6 +152,13 @@ export default function DashboardPage() {
           >
             <ChefHat className="h-4 w-4" strokeWidth={1.5} />
             Parear KDS
+          </Link>
+          <Link
+            href="/admin/service-requests"
+            className="flex w-fit items-center gap-2 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
+          >
+            <Bell className="h-4 w-4" strokeWidth={1.5} />
+            Chamados
           </Link>
         </div>
       </main>

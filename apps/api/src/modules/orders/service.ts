@@ -186,3 +186,130 @@ export async function createOrder(
     }),
   );
 }
+
+type OrderReviewTransition = 'accept' | 'reject';
+const ORDER_REVIEW_RULES: Record<OrderReviewTransition, { to: string }> = {
+  accept: { to: 'accepted' },
+  reject: { to: 'rejected' },
+};
+
+/**
+ * Aceitar/rejeitar um pedido (M10) — o caminho que o M8 deixou pendente para sessão
+ * não verificada (`customer_order_mode !== 'direct'`, `DOMAIN_MODEL.md §2.4`): o
+ * pedido do cliente nasce `submitted` e fica aguardando até um staff decidir. Só
+ * transiciona a partir de `submitted` — `UPDATE ... WHERE status = 'submitted'` para a
+ * mesma proteção de corrida já usada no bump de ticket do M9 (dois staff decidindo ao
+ * mesmo tempo: um vence, o outro vê o estado já resolvido, sem erro).
+ */
+export async function reviewOrder(
+  db: Db,
+  tenantId: string,
+  orderId: string,
+  actor: OrderActor,
+  transition: OrderReviewTransition,
+): Promise<{ id: string; status: string }> {
+  const rule = ORDER_REVIEW_RULES[transition];
+  return withTenant(db, tenantId, async (tx) => {
+    const now = new Date();
+    const [updated] = await tx
+      .update(schema.orders)
+      .set({
+        status: rule.to,
+        ...(transition === 'accept' ? { acceptedAt: now } : {}),
+      })
+      .where(
+        and(
+          eq(schema.orders.id, orderId),
+          eq(schema.orders.tenantId, tenantId),
+          eq(schema.orders.status, 'submitted'),
+        ),
+      )
+      .returning({ id: schema.orders.id, status: schema.orders.status });
+
+    const order =
+      updated ??
+      (
+        await tx
+          .select({ id: schema.orders.id, status: schema.orders.status })
+          .from(schema.orders)
+          .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenantId)))
+      )[0];
+    if (!order) throw new AppError('NOT_FOUND', 'Pedido não encontrado.');
+
+    if (updated) {
+      await tx.insert(schema.orderEvents).values({
+        id: newId(),
+        tenantId,
+        orderId,
+        type: `order.${transition}ed`,
+        fromStatus: 'submitted',
+        toStatus: rule.to,
+        actor,
+      });
+      await tx.insert(schema.domainEvents).values({
+        id: newId(),
+        tenantId,
+        channel: 'orders',
+        type: `order.${transition}ed`,
+        payload: { orderId },
+      });
+    }
+
+    return order;
+  });
+}
+
+export interface CustomerOrderSummary {
+  id: string;
+  sequenceNumber: number;
+  status: string;
+  totalCents: number;
+  submittedAt: string;
+  items: Array<{ id: string; name: string; quantity: number; status: string }>;
+}
+
+/** Pedidos da MESMA sessão de mesa do cliente (nunca de outra sessão/tenant). */
+export async function listOrdersForTableSession(
+  db: Db,
+  tenantId: string,
+  tableSessionId: string,
+): Promise<CustomerOrderSummary[]> {
+  return withTenant(db, tenantId, async (tx) => {
+    const orderRows = await tx
+      .select()
+      .from(schema.orders)
+      .where(
+        and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.tableSessionId, tableSessionId)),
+      );
+    if (orderRows.length === 0) return [];
+
+    const itemRows = await tx
+      .select()
+      .from(schema.orderItems)
+      .where(
+        inArray(
+          schema.orderItems.orderId,
+          orderRows.map((o) => o.id),
+        ),
+      );
+
+    return orderRows
+      .map((order) => {
+        const items = itemRows.filter((i) => i.orderId === order.id);
+        return {
+          id: order.id,
+          sequenceNumber: order.sequenceNumber,
+          status: order.status,
+          totalCents: items.reduce((sum, i) => sum + i.lineTotalCents, 0),
+          submittedAt: order.submittedAt.toISOString(),
+          items: items.map((i) => ({
+            id: i.id,
+            name: i.nameSnapshot,
+            quantity: i.quantity,
+            status: i.status,
+          })),
+        };
+      })
+      .sort((a, b) => b.sequenceNumber - a.sequenceNumber);
+  });
+}

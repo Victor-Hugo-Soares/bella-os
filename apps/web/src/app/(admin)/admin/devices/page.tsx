@@ -46,6 +46,23 @@ function DevicesPageContent() {
       });
   }, [tenantId]);
 
+  if (tenant.status === 'loading') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-pulse rounded-full bg-elevated" />
+      </div>
+    );
+  }
+  if (tenant.status === 'error') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-4">
+        <p role="alert" className="flex items-center gap-2 text-sm text-danger">
+          <AlertCircle className="h-4 w-4" strokeWidth={1.5} />
+          {tenant.message}
+        </p>
+      </main>
+    );
+  }
   if (!tenantId) return null;
 
   function toggleStation(id: string) {

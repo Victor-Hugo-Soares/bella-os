@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Db } from '@bella/db';
 import {
   createAreaSchema,
+  createServiceRequestSchema,
   createTableSchema,
   updateAreaSchema,
   updateTableSchema,
@@ -124,4 +125,59 @@ export async function tablesRoutes(app: FastifyInstance, deps: TablesRoutesDeps)
       tabId: actor.tabId,
     };
   });
+
+  // Chamados (M10) — cliente cria via cookie de sessão de mesa; staff lista/atende.
+  app.post('/public/:tenantSlug/service-requests', async (request) => {
+    const cookies = parseCookies(request.headers.cookie);
+    const guest = await tablesService.resolveGuestActor(db, cookies[GUEST_SESSION_COOKIE]);
+    const body = parseOrThrow(createServiceRequestSchema, request.body);
+    const serviceRequest = await tablesService.createServiceRequest(
+      db,
+      guest.tenantId,
+      guest.tableSessionId,
+      guest.guestId,
+      body,
+    );
+    return { serviceRequest };
+  });
+
+  app.get('/v1/service-requests', manage, async (request) => {
+    const serviceRequests = await tablesService.listOpenServiceRequests(
+      db,
+      request.actor!.tenantId,
+    );
+    return { serviceRequests };
+  });
+
+  app.patch<{ Params: { id: string } }>(
+    '/v1/service-requests/:id/acknowledge',
+    manage,
+    async (request) => {
+      const actor = request.actor!;
+      const serviceRequest = await tablesService.transitionServiceRequest(
+        db,
+        actor.tenantId,
+        request.params.id,
+        actor.userId,
+        'acknowledge',
+      );
+      return { serviceRequest };
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/v1/service-requests/:id/done',
+    manage,
+    async (request) => {
+      const actor = request.actor!;
+      const serviceRequest = await tablesService.transitionServiceRequest(
+        db,
+        actor.tenantId,
+        request.params.id,
+        actor.userId,
+        'done',
+      );
+      return { serviceRequest };
+    },
+  );
 }

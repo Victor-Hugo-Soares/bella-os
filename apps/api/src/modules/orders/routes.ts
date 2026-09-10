@@ -10,7 +10,7 @@ import type { Auth } from '../identity/auth';
 import { requirePermission } from '../identity/require-permission';
 import { GUEST_SESSION_COOKIE } from '../tables/routes';
 import { resolveGuestActor } from '../tables/service';
-import { createOrder } from './service';
+import { createOrder, listOrdersForTableSession, reviewOrder } from './service';
 
 export interface OrderRoutesDeps {
   db: Db;
@@ -124,6 +124,48 @@ export async function orderRoutes(app: FastifyInstance, deps: OrderRoutesDeps): 
       );
       reply.status(result.status);
       return result.body;
+    },
+  );
+
+  // Acompanhamento do cliente (M10) — só os pedidos da PRÓPRIA sessão de mesa.
+  app.get('/public/:tenantSlug/orders', async (request) => {
+    const cookies = parseCookies(request.headers.cookie);
+    const guest = await resolveGuestActor(db, cookies[GUEST_SESSION_COOKIE]);
+    const orders = await listOrdersForTableSession(db, guest.tenantId, guest.tableSessionId);
+    return { orders };
+  });
+
+  // Aceitar/rejeitar (M10) — resolve a pendência do M8: sessão não verificada fica
+  // `submitted` até um staff decidir.
+  app.patch<{ Params: { id: string } }>(
+    '/v1/orders/:id/accept',
+    { preHandler: requirePermission(db, auth, 'orders.create') },
+    async (request) => {
+      const actor = request.actor!;
+      const order = await reviewOrder(
+        db,
+        actor.tenantId,
+        request.params.id,
+        { type: 'user', userId: actor.userId },
+        'accept',
+      );
+      return { order };
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/v1/orders/:id/reject',
+    { preHandler: requirePermission(db, auth, 'orders.create') },
+    async (request) => {
+      const actor = request.actor!;
+      const order = await reviewOrder(
+        db,
+        actor.tenantId,
+        request.params.id,
+        { type: 'user', userId: actor.userId },
+        'reject',
+      );
+      return { order };
     },
   );
 }

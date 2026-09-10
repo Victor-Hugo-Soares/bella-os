@@ -1,10 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { Db } from '@bella/db';
 import { requireDevice } from '../identity/devices/require-device';
-import { listActiveTickets, transitionTicket } from './service';
+import type { Auth } from '../identity/auth';
+import { requirePermission } from '../identity/require-permission';
+import { listActiveTickets, listReadyTicketsForTenant, transitionTicket } from './service';
 
 export interface KdsRoutesDeps {
   db: Db;
+  auth: Auth;
 }
 
 /**
@@ -13,8 +16,19 @@ export interface KdsRoutesDeps {
  * entrada do cliente — um KDS só vê/transiciona tickets das próprias estações.
  */
 export async function kdsRoutes(app: FastifyInstance, deps: KdsRoutesDeps): Promise<void> {
-  const { db } = deps;
+  const { db, auth } = deps;
   const authed = { preHandler: requireDevice(db) };
+
+  // Expedição (M10) — visão de STAFF (sessão normal, não dispositivo), todas as
+  // estações: quem leva à mesa precisa ver tudo que está pronto, não só uma estação.
+  app.get(
+    '/v1/tickets/ready',
+    { preHandler: requirePermission(db, auth, 'tables.manage') },
+    async (request) => {
+      const tickets = await listReadyTicketsForTenant(db, request.actor!.tenantId);
+      return { tickets };
+    },
+  );
 
   app.get('/v1/kds/tickets', authed, async (request) => {
     const device = request.deviceActor!;
