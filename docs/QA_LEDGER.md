@@ -695,3 +695,34 @@ Dois pagamentos consecutivos na mesma comanda (R$ 55 e R$ 20) cada um incremento
 
 ### 2026-09-11 — M25 — Gate Git — PASS
 PR #32 (`claude/m25-admin-cash-reports` → `main`), CI remota verde nos 4 jobs de primeira, merge commit `049ad82`.
+
+---
+
+## M-PROD1 — Prontidão de produção (itens sem custo)
+
+### 2026-09-10 — M-PROD1 — Confirmação do Victor
+Pedido direto do Victor, em resposta a um levantamento completo de prontidão de produção que eu fiz a pedido dele: "pra agora já faz tudo que pudermos fazer sem pagar nada etc, ja faça AGORA". Escopo: só itens que não exigem criar conta/cartão em nenhum serviço novo — o resto (Railway de fato, domínio, Sentry, email) fica documentado em `docs/RUNBOOK_DEPLOY.md` como ação exclusiva do Victor.
+
+### 2026-09-10 — M-PROD1 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` respondeu o Gate de Plano: só itens sem custo/sem conta nova; exigência de env vars em produção via `.superRefine` (nunca no schema base, pra não quebrar dev/CI); rate limit global simples primeiro, sem granularidade por rota.
+
+### 2026-09-10 — M-PROD1 — G5/G6 config e segurança (frente 1 de 3: unit) — PASS
+`apps/api/src/config.ts`: `APP_DATABASE_URL`/`BETTER_AUTH_SECRET`/`WEB_ORIGIN` viram obrigatórias quando `NODE_ENV=production` via `.superRefine` (schema base continua com elas opcionais, pra não quebrar dev). `apps/api/test/health.test.ts` ganhou 3 casos novos: dev sem as 3 vars não lança; produção sem elas lança citando os 3 nomes; produção com as 3 presentes não lança. 8/8 testes unitários passando.
+
+### 2026-09-10 — M-PROD1 — Execução real (frente 2 de 3) — PASS
+`pnpm build` (tsup) + `node dist/index.js`: com `NODE_ENV=production` e nenhuma das 3 vars definidas, a API **recusa subir** com erro explícito citando as 3 (testado rodando o binário de verdade, não só lendo o código). Com `NODE_ENV=development`, sobe normal; `curl -i /health` confirmou de verdade os cabeçalhos de segurança do `@fastify/helmet` (`X-Frame-Options`, `Strict-Transport-Security`, `X-Content-Type-Options` etc.) e os headers do `@fastify/rate-limit` (`x-ratelimit-limit: 300`, `x-ratelimit-remaining`) presentes na resposta real.
+
+### 2026-09-10 — M-PROD1 — CI (frente 3 de 3, independente) — PENDENTE (roda no PR)
+O job `integração (Postgres 16)` da CI exercita `buildApp()` com `rate-limit`/`helmet` registrados de verdade contra toda a suíte de integração — qualquer quebra de rota causada pelos plugins novos aparece ali, frente independente da execução manual acima.
+
+### 2026-09-10 — M-PROD1 — Entregáveis
+- `apps/api/src/config.ts`: validação de produção (`.superRefine`).
+- `apps/api/src/app.ts`: `@fastify/rate-limit` (300 req/min/IP, erro passa pelo envelope padrão via `setErrorHandler` — sem `errorResponseBuilder` próprio) e `@fastify/helmet` (`contentSecurityPolicy: false`, API só responde JSON).
+- `apps/api/railway.json` e `apps/web/railway.json`: config de build/start (Nixpacks, `pnpm --filter` a partir da raiz do monorepo) prontos pra quando o Victor conectar o projeto Railway.
+- `docs/RUNBOOK_DEPLOY.md` novo: separa claramente o que já está pronto no repo do que só o Victor pode fazer (conta Railway, variáveis reais, domínio).
+- `.env.example`: adicionadas `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL`/`WEB_ORIGIN`, que nunca tinham sido documentadas ali (gap real encontrado no levantamento).
+
+### 2026-09-10 — M-PROD1 — `pnpm check`/`pnpm build` (root) — PASS
+Verdes.
+
+### 2026-09-10 — M-PROD1 — Gate Git — PENDENTE

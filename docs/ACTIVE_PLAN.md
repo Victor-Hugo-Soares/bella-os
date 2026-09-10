@@ -2,9 +2,76 @@
 
 > Plano do milestone em execução. Sonnet: leia `CLAUDE.md` → `PROJECT_STATE.md` → este arquivo → `DOMAIN_MODEL.md` §1.6/§4 antes de tocar em código. Ao concluir, registre evidências em `QA_LEDGER.md`, atualize `PROJECT_STATE.md` e reescreva este arquivo para o próximo milestone (`ROADMAP.md`).
 
-> M21–M25 estão mergeados em `main` (PR #28 `4f8940b`, PR #29 `6da6ed2`, PR #30 `9e5478f`, PR #31 `3abbf6f`, PR #32 `049ad82`, todos CI verde de primeira). **Fecha o handoff de design completo nas 3 superfícies** (re-skin) **+ as telas de comandas/caixa/relatório que só existiam como API**. Falta só M26 (equipe/permissões, configurações) — precisa de backend novo, não é reskin; Gate de Plano ainda não respondido, ver seção abaixo.
+> M21–M25 estão mergeados em `main` (PR #28 `4f8940b`, PR #29 `6da6ed2`, PR #30 `9e5478f`, PR #31 `3abbf6f`, PR #32 `049ad82`, todos CI verde de primeira). **Fecha o handoff de design completo nas 3 superfícies** (re-skin) **+ as telas de comandas/caixa/relatório que só existiam como API**.
+>
+> **2026-09-10: nova frente, pedida direto pelo Victor** — "faça AGORA tudo que pudermos fazer sem pagar nada" depois de eu levantar o que falta pra produção. Isto é o **M-PROD1**, descrito na próxima seção, em execução. M26 (equipe/permissões, configurações) continua pendente depois disso — ver seção "Milestone seguinte" mais abaixo.
 
-## Nova frente: handoff de design (Claude Design → produto real)
+## Nova frente: prontidão de produção (itens sem custo)
+
+Levantamento completo em resposta direta ao Victor (2026-09-10): o que falta pra
+colocar o Bella OS em produção de verdade. Identificados itens bloqueantes que dá pra
+resolver **sem criar conta em nada nem gastar dinheiro** — o resto (Railway de fato,
+domínio, Sentry, provedor de email) precisa de conta/cartão do Victor, fora do escopo
+do que uma sessão autônoma deveria fazer sozinha (ver `AskUserQuestion`/regras de
+segurança: criar contas e pagar por serviços não é algo que eu decido sozinha).
+
+### Milestone atual: **M-PROD1 — Itens de produção sem custo**
+
+### Resultado esperado
+1. **`BETTER_AUTH_SECRET`/`APP_DATABASE_URL`/`WEB_ORIGIN` obrigatórias em produção** —
+   hoje o schema (`apps/api/src/config.ts`) permite a API subir com `NODE_ENV=production`
+   sem nenhuma delas: sessão assinada com segredo ausente, ou pior, caindo pro fallback
+   de `DATABASE_URL` (dono do banco, ignora RLS) em silêncio. Adicionar validação que
+   falha explicitamente na inicialização.
+2. **Rate limiting** (`@fastify/rate-limit`) — mitigação básica de abuso/força bruta,
+   ausente até agora apesar de já estar no desenho da arquitetura (`ARCHITECTURE.md`).
+3. **Cabeçalhos de segurança** (`@fastify/helmet`) — ausente até agora.
+4. **Config de deploy pro Railway** (`apps/api/railway.json`, `apps/web/railway.json`)
+   — prontos pra conectar quando o Victor criar o projeto; eu não crio a conta/projeto
+   Railway nem defino cartão, isso é decisão e ação dele.
+5. **`docs/RUNBOOK_DEPLOY.md`** novo — passo a passo exato do que só o Victor pode
+   fazer (conta Railway, variáveis de ambiente reais, domínio opcional) separado do
+   que já está pronto no repo.
+6. **`.env.example`** atualizado — faltavam `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL`/
+   `WEB_ORIGIN`, nunca tinham sido documentadas ali.
+
+### Riscos (config/segurança/autenticação — regra 2 do `CLAUDE.md`: 3 frentes)
+- **Quebrar o ambiente de desenvolvimento** ao tornar campos obrigatórios — mitigado
+  fazendo a exigência condicional a `NODE_ENV === 'production'` via `.superRefine`,
+  nunca no schema base (dev continua sem exigir nada, como sempre foi).
+- **Rate limit agressivo demais** derrubando tráfego legítimo do KDS (polling de
+  segurança a cada 5s por dispositivo) — usado um limite generoso (300 req/min por IP)
+  de propósito, documentado no código que precisa de dado real de produção pra
+  calibrar, não achismo.
+
+### Testes (3 frentes — toca autenticação/config de produção)
+1. Unit: `apps/api/test/health.test.ts` cobre `loadConfig` aceitando dev sem os 3
+   campos e rejeitando produção sem eles (mensagem cita os 3 nomes).
+2. Execução real: `pnpm build` + `node dist/index.js` com `NODE_ENV=production` sem
+   as vars → falha explícita na inicialização (testado de verdade, não só lido no
+   código); com `NODE_ENV=development` → sobe normal, `curl /health` confirma
+   cabeçalhos de segurança (`X-Frame-Options`, `Strict-Transport-Security` etc.) e
+   headers de rate limit (`x-ratelimit-limit: 300`) presentes na resposta real.
+3. CI: job `integração (Postgres 16)` já roda a suíte inteira de testes de integração
+   contra `buildApp()` com `rate-limit`/`helmet` registrados de verdade — qualquer
+   quebra de rota apareceria ali (frente independente do teste unitário/manual acima).
+
+### Gate de Plano (respondido no início da execução do M-PROD1)
+1. **Só itens sem custo e sem precisar de conta/credencial nova** — nada de Railway de
+   fato, domínio, Sentry, provedor de email: preparo a config, mas a ação de
+   criar/pagar é do Victor (`docs/RUNBOOK_DEPLOY.md` documenta o que falta pra ele).
+2. **Exigência de env vars em produção via `.superRefine`, nunca no schema base** —
+   não pode quebrar `pnpm dev`/CI que rodam com `NODE_ENV` diferente de `production`.
+3. **Rate limit global simples (300/min) primeiro**, sem limites por rota ainda — mais
+   granularidade (ex. limite mais apertado em `/api/auth/*`) fica pra quando houver
+   sinal real de abuso, não especulação.
+
+---
+
+## Depois do M-PROD1: retomar o handoff de design (M26)
+
+> Contexto histórico da frente de design (M21-M25, já concluída) — mantido aqui como
+> referência porque o M26 ainda pertence a esta mesma iniciativa.
 
 O Victor desenhou as 20 telas das três superfícies num canvas do Claude Design
 (`bella-os-artboards.vsoareslins452.chatgpt.site`) e aprovou a direção visual —
@@ -85,8 +152,6 @@ resposta não for óbvia pelo mockup aprovado):
 
 ## Histórico — M25 (resumo; detalhes completos em `QA_LEDGER.md` e `PROJECT_STATE.md §4`)
 Três telas novas consumindo API 100% pronta desde M12–M16 (zero lógica nova no backend): `/admin/tabs` (lista de comandas → detalhe com desconto/pagamento multi-forma/troco condicional/fechamento), `/admin/cash` (abrir/fechar sessão + sangria/suprimento, divergência sempre visível), `/admin/reports` (métricas do dia, intervalo fixo "hoje"). Contratos verificados linha a linha contra `routes.ts`/`service.ts`/`packages/contracts` antes de implementar (regra 12 do `CLAUDE.md`). `Idempotency-Key` gerada por tentativa de submit. Testado com fixture fake stateful reproduzindo o comportamento real (desconto reduz saldo, pagamento parcial com troco calculado certo, fechamento só habilita com saldo 0); achado real na própria fixture (CORS sem `idempotency-key` no allow-headers, não um bug do produto).
-
----
 
 ---
 
