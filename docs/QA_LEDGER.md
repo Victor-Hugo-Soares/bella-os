@@ -511,5 +511,8 @@ Frentes:
 ### 2026-09-10 — M15 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
 Todos verdes no monorepo inteiro (testes de integração exigem Postgres real — não disponível localmente, ENV-1 — rodam na CI). Migration `0012_organic_felicia_hardy.sql` gerada e verificada (`drizzle-kit check`).
 
-### 2026-09-10 — M15 — Gate Git — PENDENTE
-Branch `claude/m15-tab-close-golden-journey` pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.
+### 2026-09-10 — M15 — Gate Git — PASS
+PR #24 (`claude/m15-tab-close-golden-journey` → `main`), CI remota verde nos 3 jobs de primeira (sem regressão desta vez), merge commit `990dc83`.
+
+### 2026-09-10 — Fase D — Gate de saída — PASS (com lacuna registrada)
+"Totais reconstruíveis; permissões e concorrência testadas; fechamento sem conta manual" (`ROADMAP.md`) — todos atendidos e provados (M12–M15). **Lacuna real registrada, não esquecida:** o `ROADMAP.md` original previa "relatório do dia operacional" dentro do M14; não foi implementado — ver `KNOWN_ISSUES.md` R-16. Não bloqueia a Fase D (o gate de saída formal não exige relatórios), mas fica pendente antes de prometer isso ao Victor.
