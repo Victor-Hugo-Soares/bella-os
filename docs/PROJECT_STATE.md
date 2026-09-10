@@ -2,10 +2,10 @@
 
 > Fotografia atual. Atualizar ao fim de cada milestone e antes de compactar contexto. Histórico vai para `memory/archive/`.
 
-**Atualizado em:** 2026-09-10 (M12 implementado, aguardando CI/merge da PR — sessão Sonnet 5, execução hands-off)
-**Fase:** D — Caixa e financeiro (em andamento) · **Milestone em fechamento:** M12 Ledger, taxas, couvert, descontos · **Próximo:** M13 Sessão de caixa e pagamentos (`ACTIVE_PLAN.md`)
-**Branch:** `claude/m12-totals-ledger` (PR aberta) · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Último commit em `main`:** `90b8f02` (docs Q6)
-**CI:** local verde (lint·format·typecheck·unit·build); integração Postgres (novos testes de `billing.test.ts`) roda só na CI remota — ENV-1 (sem Docker local).
+**Atualizado em:** 2026-09-10 (M12 concluído e mergeado, sessão Sonnet 5, execução hands-off)
+**Fase:** D — Caixa e financeiro (em andamento) · **Milestone concluído:** M12 Ledger, taxas, couvert, descontos · **Próximo:** M13 Sessão de caixa e pagamentos (`ACTIVE_PLAN.md`)
+**Branch:** `main` · **Remote:** `https://github.com/Victor-Hugo-Soares/bella-os.git` · **Commit:** `6fcb18e` (merge PR #21, M12)
+**CI:** verde nos 3 jobs (lint·format·typecheck·unit, integração Postgres — `billing.test.ts` novo, 8 testes; build+smoke).
 
 ## 1. Estado funcional do produto
 Fase C completa (M8–M11): ciclo cliente→cozinha→salão inteiro pela UI real. M12 acrescenta o lado financeiro que faltava: a comanda agora sabe calcular seu próprio total (itens, taxa de serviço, couvert, desconto) — `GET /v1/tabs/:id/bill` — mas ainda não existe pagamento nem fechamento de comanda; isso é o M13/M14.
@@ -43,4 +43,4 @@ Sem mudança (Docker local com falha, ENV-1; workspace OneDrive, ENV-5; ENV-6 re
 - Decidir se torna o repositório privado (ainda pendente desde o bootstrap).
 
 ## 8. Próximo passo exato
-M12 implementado e testado localmente (lint/typecheck/unit/build verdes); falta abrir a PR, aguardar CI remota (integração Postgres) e mergear. Depois: planejar e executar o **M13 — sessão de caixa e pagamentos** (registro manual de pagamento contra o ledger, formas de pagamento, sem integração de PSP/TEF — confirmado pelo Victor, `PRODUCT_CONTEXT.md §2` Q6).
+Executar o **M13** conforme `docs/ACTIVE_PLAN.md`: `cash_sessions`/`cash_registers`/`payments` (tabelas novas + migration), abrir/checar sessão de caixa (`cash.open`), registrar pagamento manual contra a comanda (`payments.record`, multi-forma) e estornar pagamento (`payments.void`). **Crítico — 3 frentes** (dinheiro/caixa). Fechamento de sessão com contagem/divergência fica para o M14.

@@ -60,13 +60,13 @@
 |--------|--------------|-------|
 | `ledger_entries` | tenant_id, tab_id, type (`item_charge/item_reversal/service_fee/couvert/discount/payment/payment_void/adjustment/transfer_in/transfer_out`), amount_cents (signed: cobranças +, pagamentos −), ref_type/ref_id, reason?, created_by (actor), cash_session_id? | **append-only**: sem UPDATE/DELETE (revogar privilégio + trigger) |
 | `payments` | tenant_id, tab_id, cash_session_id, method (`cash/debit/credit/pix/voucher/other`), amount_cents, tendered_cents?, change_cents?, status (`confirmed/voided`), received_by_user_id, device_id, external_ref?, idempotency_key, voided_at, void_reason | cria `ledger_entries` payment/−; void cria payment_void/+ |
-| `discounts` | tenant_id, tab_id, order_item_id?, kind (`percent/fixed`), value, amount_cents, reason, approved_by_user_id | materializa em ledger `discount` |
 | `tab_closures` | tab_id (unique), items_total, service_fee, couvert, discounts, adjustments, grand_total, paid_total, closed_by, closed_at, snapshot JSONB | fotografia final; reconciliação compara com ledger |
 | `cash_registers` | tenant_id, name, is_active | caixa físico |
 | `cash_sessions` | tenant_id, cash_register_id, status (`open/closed`), opened_by, opened_at, opening_float_cents, closed_by, closed_at, expected JSONB por método, counted JSONB por método, blind_close bool | índice único parcial: um `open` por registradora |
 | `cash_movements` | cash_session_id, type (`sale/withdrawal(sangria)/deposit(suprimento)/adjustment`), method, amount_cents, payment_id?, reason, by | |
 | `cash_divergences` | cash_session_id, method, expected_cents, counted_cents, difference_cents, reason, acknowledged_by | nunca ajustada em silêncio |
 
+**Correção de 2026-09-10 (M12):** esta seção previa uma tabela `discounts` própria; a implementação real materializa desconto diretamente como uma `ledger_entries` (`type='discount'`, `amount_cents` negativo, `reason` + `created_by` já cobrem a auditoria) — mesmo padrão que o M11 já usa para cancelamento (`item_reversal`, sem tabela `cancellations` própria). Uma tabela extra só para guardar `kind`/`value` antes do cálculo seria redundante: o valor final já fica gravado e auditado no ledger, e `kind`/`value` brutos não têm consumidor (nenhum relatório os usa hoje). Se um caso de uso real precisar do valor bruto do desconto (ex.: relatório "quanto foi dado em % vs. fixo"), reavaliar então — não antes.
 ### 1.7 Estoque (Fase E — modelar depois, listado para não esquecer)
 `ingredients`, `ingredient_units`, `recipes` (ficha técnica: product_id/modifier_id → ingredient, qty), `stock_movements` (type `purchase/sale_consumption/waste/adjustment/transfer`, imutável), `suppliers`, `purchases`, `purchase_items`, `stock_policies` (permitir negativo? baixar na venda ou na produção?).
 

@@ -423,5 +423,8 @@ Frentes:
 ### 2026-09-10 — M12 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
 Todos verdes no monorepo inteiro (testes de integração exigem Postgres real — não disponível localmente, ENV-1 — rodam na CI). Sem migration para gerar/checar neste milestone.
 
-### 2026-09-10 — M12 — Gate Git — PENDENTE
-Branch `claude/m12-totals-ledger` pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar (mesmo padrão dos milestones anteriores).
+### 2026-09-10 — M12 — Gate Git — PASS
+PR #21 (`claude/m12-totals-ledger` → `main`), CI remota verde nos 3 jobs, merge commit `6fcb18e`.
+
+### 2026-09-10 — M12 — Correção de documentação — PASS
+`docs/DOMAIN_MODEL.md §1.6` previa uma tabela `discounts` própria que a implementação não criou (desconto materializa direto em `ledger_entries`, mesmo padrão do `item_reversal` do M11). Corrigido no próprio `DOMAIN_MODEL.md` com a razão registrada (CLAUDE.md, "fonte de verdade documental": divergência entre doc e código sempre investigada e corrigida na fonte desatualizada).
