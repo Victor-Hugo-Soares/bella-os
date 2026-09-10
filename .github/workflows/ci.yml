@@ -76,6 +76,13 @@ jobs:
         env:
           NODE_ENV: production
           LOG_LEVEL: warn
+          # Só pra satisfazer a validação de config de produção (apps/api/src/config.ts)
+          # -- este smoke não precisa de banco de verdade (pg.Pool conecta sob demanda,
+          # só quando uma query roda, e /health não toca o banco), então uma URL
+          # sintaticamente válida mas inalcançável é suficiente aqui.
+          APP_DATABASE_URL: postgres://smoke:smoke@localhost:5432/smoke
+          BETTER_AUTH_SECRET: smoke-test-secret-nao-usar-em-producao-real
+          WEB_ORIGIN: http://localhost:3000
         run: |
           node apps/api/dist/index.js & PID=$!
           for i in $(seq 1 30); do curl -fsS http://localhost:3001/health >/dev/null 2>&1 && break || sleep 0.5; done

@@ -1,5 +1,7 @@
 import Fastify, { LogController, type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import sensible from '@fastify/sensible';
 import { randomUUID } from 'node:crypto';
 import type { DbHandle } from '@bella/db';
@@ -67,6 +69,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     origin: config.WEB_ORIGIN ?? false,
     credentials: true,
   });
+  // Cabeçalhos de segurança padrão (X-Content-Type-Options, X-Frame-Options, HSTS
+  // etc.). CSP desligada: a API só responde JSON (nunca HTML), então uma política de
+  // conteúdo pensada para páginas não se aplica e só arriscaria interferir com algo
+  // sem necessidade real.
+  await app.register(helmet, { contentSecurityPolicy: false });
+  // Limite de requisições por IP — mitigação básica de força bruta/abuso antes de
+  // qualquer coisa mais sofisticada (WAF, etc.) existir. Valor generoso de propósito
+  // (uma cozinha com polling de segurança de 5s + vários dispositivos facilmente passa
+  // de 100 req/min só em tráfego legítimo) — ajustar com dado real de produção, não
+  // achismo.
+  // Erros de limite (statusCode 429) passam pelo `setErrorHandler` central
+  // (plugins/error-handler.ts), que já mapeia qualquer 4xx sem `AppError` pro código
+  // `RATE_LIMITED` — não precisa de `errorResponseBuilder` próprio aqui.
+  await app.register(rateLimit, { max: 300, timeWindow: '1 minute' });
 
   app.addHook('onSend', async (request, reply) => {
     reply.header('x-request-id', request.id);

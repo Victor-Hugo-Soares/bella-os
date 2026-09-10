@@ -61,4 +61,31 @@ describe('configuração', () => {
   it('rejeita DATABASE_URL inválida com mensagem legível', () => {
     expect(() => loadConfig({ DATABASE_URL: 'nao-e-url' })).toThrow(/DATABASE_URL/);
   });
+
+  it('permite NODE_ENV=development sem APP_DATABASE_URL/BETTER_AUTH_SECRET/WEB_ORIGIN', () => {
+    expect(() => loadConfig({ NODE_ENV: 'development' })).not.toThrow();
+  });
+
+  it('rejeita NODE_ENV=production sem APP_DATABASE_URL/BETTER_AUTH_SECRET/WEB_ORIGIN', () => {
+    try {
+      loadConfig({ NODE_ENV: 'production' });
+      expect.unreachable('loadConfig deveria ter lançado');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      expect(message).toContain('APP_DATABASE_URL');
+      expect(message).toContain('BETTER_AUTH_SECRET');
+      expect(message).toContain('WEB_ORIGIN');
+    }
+  });
+
+  it('aceita NODE_ENV=production com os três campos obrigatórios presentes', () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        APP_DATABASE_URL: 'postgres://user:pass@host:5432/db',
+        BETTER_AUTH_SECRET: 'um-segredo-com-pelo-menos-16-chars',
+        WEB_ORIGIN: 'https://app.example.com',
+      }),
+    ).not.toThrow();
+  });
 });

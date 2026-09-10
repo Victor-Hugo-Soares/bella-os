@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const envSchema = z.object({
+const baseEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3001),
   HOST: z.string().default('0.0.0.0'),
@@ -13,19 +13,47 @@ const envSchema = z.object({
   DATABASE_URL: z.url().optional(),
   // Conexão como `bella_app` (sem BYPASSRLS, não é dono — M1 ADR-020): é isto que a
   // API usa para servir requisições de verdade a partir do M2, quando o primeiro
-  // módulo (identity) passou a fazer queries reais.
+  // módulo (identity) passou a fazer queries reais. Opcional só no schema base porque
+  // em dev cai-se para DATABASE_URL (ver aviso em index.ts) — o `.superRefine` abaixo
+  // torna isto obrigatório de fato quando NODE_ENV=production.
   APP_DATABASE_URL: z.url().optional(),
   // M2 (Better Auth). Obrigatória para assinar sessões; sem valor em dev só por
-  // conveniência local — nunca comitar um valor real (regra 9 do CLAUDE.md).
+  // conveniência local — nunca comitar um valor real (regra 9 do CLAUDE.md). Opcional
+  // só no schema base pelo mesmo motivo do campo acima: o `.superRefine` exige em produção.
   BETTER_AUTH_SECRET: z.string().min(16).optional(),
   // URL pública onde a própria API responde (usada pelo Better Auth para montar
   // callbacks/cookies corretamente). Sem apps/web ainda, aponta para a própria API.
   BETTER_AUTH_URL: z.url().default('http://localhost:3001'),
-  // Origem do front (ainda não existe — M4); usada em CORS e trustedOrigins.
+  // Origem do front; usada em CORS e trustedOrigins. Sem valor, CORS bloqueia toda
+  // origem (fail-closed) — mas isso quebraria o cliente/admin em produção, daí exigida
+  // pelo `.superRefine` abaixo quando NODE_ENV=production.
   WEB_ORIGIN: z.url().optional(),
 });
 
-export type AppConfig = z.infer<typeof envSchema>;
+// Campos que, no schema base, são opcionais só para permitir o fallback de
+// conveniência de desenvolvimento (ver comentários acima e o aviso em index.ts).
+// Subir com NODE_ENV=production sem eles é um erro de configuração real, não uma
+// situação "vazia aceitável" — falha explícita aqui é melhor que RLS ignorada
+// silenciosamente ou sessão assinada com segredo ausente.
+const envSchema = baseEnvSchema.superRefine((data, ctx) => {
+  if (data.NODE_ENV !== 'production') return;
+  const required: Array<keyof typeof data> = [
+    'APP_DATABASE_URL',
+    'BETTER_AUTH_SECRET',
+    'WEB_ORIGIN',
+  ];
+  for (const key of required) {
+    if (!data[key]) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [key],
+        message: `${key} é obrigatória quando NODE_ENV=production.`,
+      });
+    }
+  }
+});
+
+export type AppConfig = z.infer<typeof baseEnvSchema>;
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
   const parsed = envSchema.safeParse(env);
