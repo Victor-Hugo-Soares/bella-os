@@ -107,9 +107,7 @@ function DevicesPageContent() {
         <p className="text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
           Dispositivos
         </p>
-        <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground">
-          Parear KDS
-        </h1>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground">Parear KDS</h1>
       </header>
 
       <main className="mx-auto max-w-lg px-6 py-8">

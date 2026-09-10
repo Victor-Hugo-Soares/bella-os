@@ -1,62 +1,76 @@
 @import 'tailwindcss';
 
 /*
- * Tokens do design system do Bella OS (docs/FRONTEND_GUIDELINES.md). Dark por padrão
- * (:root), light via classe `.light` no <html>. `--brand` é white-label — vem de
- * tenant_settings.brand por tenant a partir da Fase B; aqui fica o valor default.
+ * Tokens do design system do Bella OS (docs/FRONTEND_GUIDELINES.md, M21). Vieram do
+ * handoff do Claude Design (canvas aprovado pelo Victor em 2026-09-11) — extraídos do
+ * DOM real do mockup (getComputedStyle), não estimados visualmente. Claro por padrão
+ * (cliente + admin). `--brand` continua sendo o ponto de override white-label
+ * (ARCHITECTURE.md) — só o valor default mudou.
+ *
+ * O KDS é a ÚNICA superfície com tema escuro, e é um tema PRÓPRIO e fixo (não é "dark
+ * mode" alternável do usuário) — aplicado via classe `.kds-theme`, ver mais abaixo.
+ * Cliente e admin não ganham modo escuro nesta entrega (não estava no mockup aprovado).
  */
 :root {
-  --background: oklch(16.5% 0.005 220);
-  --foreground: oklch(94% 0.005 220);
-  --surface: oklch(20.5% 0.006 220);
-  --elevated: oklch(23.5% 0.007 220);
+  --background: #f2f2f2;
+  --foreground: #252525;
+  --surface: #ffffff;
+  --elevated: #ffffff;
   --card: var(--surface);
-  --muted-foreground: oklch(66% 0.012 220);
-  --brand: oklch(74% 0.11 184);
-  --brand-foreground: oklch(15% 0.01 200);
-  --brand-soft: oklch(74% 0.11 184 / 0.1);
-  --border: oklch(100% 0 0 / 0.06);
-  --border-strong: oklch(100% 0 0 / 0.12);
-  --input: oklch(100% 0 0 / 0.08);
-  --ring: oklch(74% 0.11 184 / 0.5);
-  --radius: 0.625rem;
+  --card-warm: #faf7f3;
+  --muted-foreground: #686868;
+  --brand: #bd3027;
+  --brand-hover: #a52620;
+  --brand-foreground: #ffffff;
+  --brand-soft: rgb(189 48 39 / 0.1);
+  --border: #e8e8e8;
+  --border-strong: #dddddd;
+  --input: #e8e8e8;
+  --ring: rgb(189 48 39 / 0.4);
+  --radius: 7px;
+  --radius-lg: 13px;
 
-  --danger: oklch(70% 0.22 25);
-  --success: oklch(74% 0.18 145);
+  --danger: #c0392b;
+  --success: #2f7d4f;
 
-  --font-display: 'Schibsted Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-sans: 'Switzer', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'Menlo', monospace;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 }
 
-:root.light {
-  --background: oklch(98.5% 0.003 80);
-  --foreground: oklch(18% 0.01 220);
-  --surface: oklch(100% 0 0);
-  --elevated: oklch(100% 0 0);
+/*
+ * KDS — tema escuro quente fixo (mockup: fundo #202020, card de ticket #2d2a28, texto
+ * #faf7f3/#fffaf4). Aplicar como classe na raiz da tela do KDS (`<div class="kds-theme">`
+ * ou no `<body>` só daquela rota), nunca no restante do produto.
+ */
+.kds-theme {
+  --background: #202020;
+  --foreground: #fffaf4;
+  --surface: #2d2a28;
+  --elevated: #322f2c;
   --card: var(--surface);
-  --muted-foreground: oklch(45% 0.012 220);
-  --brand: oklch(62% 0.1 184);
-  --brand-foreground: oklch(98% 0.005 200);
-  --brand-soft: oklch(62% 0.1 184 / 0.1);
-  --border: oklch(0% 0 0 / 0.08);
-  --border-strong: oklch(0% 0 0 / 0.14);
-  --input: oklch(0% 0 0 / 0.06);
-  --ring: oklch(62% 0.1 184 / 0.5);
+  --card-warm: var(--surface);
+  --muted-foreground: #b8b0a8;
+  --border: rgb(255 250 244 / 0.08);
+  --border-strong: rgb(255 250 244 / 0.14);
+  --input: rgb(255 250 244 / 0.1);
+  --danger: #e05a4a;
+  --success: #4fae7a;
 }
 
 /* Tailwind v4 é CSS-first: @theme inline expõe os tokens acima como utilitários
    (bg-background, text-foreground, border-border, etc). Ver gotcha documentado em
-   FRONTEND_GUIDELINES.md — var(--font-display) sob @theme inline NÃO é emitida em
-   :root, então @layer base usa o stack literal diretamente, não var(--font-display). */
+   FRONTEND_GUIDELINES.md — var(--font-sans) sob @theme inline NÃO é emitida em
+   :root, então @layer base usa o stack literal diretamente, não var(--font-sans). */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-elevated: var(--elevated);
   --color-card: var(--card);
+  --color-card-warm: var(--card-warm);
   --color-muted-foreground: var(--muted-foreground);
   --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-soft: var(--brand-soft);
   --color-border: var(--border);
@@ -66,8 +80,8 @@
   --color-danger: var(--danger);
   --color-success: var(--success);
   --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
 
-  --font-display: var(--font-display);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 }
@@ -85,11 +99,12 @@
   h2,
   h3,
   h4 {
-    font-family: 'Schibsted Grotesk', ui-sans-serif, system-ui, sans-serif;
-    letter-spacing: -0.025em;
+    font-family: 'Switzer', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
   .font-mono-tabular {
-    font-family: 'JetBrains Mono', ui-monospace, 'Menlo', monospace;
+    font-family: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
     font-variant-numeric: tabular-nums;
   }
 }
