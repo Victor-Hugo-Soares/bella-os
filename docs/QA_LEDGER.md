@@ -646,4 +646,5 @@ PR #29 (`claude/m22-customer-reskin` → `main`), CI remota verde nos 4 jobs de 
 ### 2026-09-11 — M23 — `pnpm lint`/`typecheck`/`build` — PASS
 Rodados na raiz do monorepo (mesmo comando que a CI usa — `pnpm lint` = `eslint .`), verdes. **Nota**: `pnpm --filter @bella/web lint` isoladamente falha por uma regra (`react-hooks/set-state-in-effect`) que só existe no `eslint.config.mjs` local de `apps/web` (via `eslint-config-next`), não no `eslint.config.js` da raiz que a CI de fato roda — confirmado com `git stash` que a falha já existia em `main` antes desta sessão, não é uma regressão introduzida aqui. Divergência de config pré-existente, fora do escopo do M23; não bloqueia porque a CI usa o comando da raiz.
 
-### 2026-09-11 — M23 — Gate Git — PENDENTE
+### 2026-09-11 — M23 — Gate Git — PASS
+PR #30 (`claude/m23-kds-reskin` → `main`), CI remota verde nos 4 jobs de primeira, merge commit `9e5478f`.
