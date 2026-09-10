@@ -112,7 +112,7 @@ export default function DashboardPage() {
           Sessão ativa
         </div>
 
-        <dl className="mt-8 divide-y divide-border rounded-md border border-border bg-surface">
+        <dl className="mt-8 divide-y divide-border rounded-lg border border-border-strong bg-surface shadow-[0_8px_24px_rgba(0,0,0,.03)]">
           <div className="flex items-center gap-3 px-4 py-3.5">
             <User className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
             <dt className="w-32 shrink-0 text-sm text-muted-foreground">Nome</dt>
