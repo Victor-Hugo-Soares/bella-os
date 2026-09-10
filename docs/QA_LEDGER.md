@@ -428,3 +428,28 @@ PR #21 (`claude/m12-totals-ledger` → `main`), CI remota verde nos 3 jobs, merg
 
 ### 2026-09-10 — M12 — Correção de documentação — PASS
 `docs/DOMAIN_MODEL.md §1.6` previa uma tabela `discounts` própria que a implementação não criou (desconto materializa direto em `ledger_entries`, mesmo padrão do `item_reversal` do M11). Corrigido no próprio `DOMAIN_MODEL.md` com a razão registrada (CLAUDE.md, "fonte de verdade documental": divergência entre doc e código sempre investigada e corrigida na fonte desatualizada).
+
+---
+
+## Milestone M13 — Sessão de caixa e pagamentos
+
+### 2026-09-10 — M13 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M13) respondeu o Gate de Plano no início da implementação: um `cash_register` por tenant, provisionado no seed (sem CRUD ainda, YAGNI); `cash_sessions` usa índice único parcial (mesmo padrão de `table_sessions_open_per_table_key`, M6) — só uma sessão aberta por registrador, garantido pelo banco; `payments.amountCents` nunca excede o saldo, verificado reaproveitando `computeBill` (núcleo do `getBill` do M12, extraído para rodar DENTRO da mesma transação) com o mesmo `FOR UPDATE` na `tab` que serializa concorrência (mesmo princípio do `createOrder`, M8); troco só existe em dinheiro (`refine` no contrato); `POST /payments` exige `Idempotency-Key` (primeira mutação de dinheiro ENTRANDO no sistema); `POST /payments/:id/void` idempotente por construção (mesmo padrão do `cancelOrderItem`, M11). Fechamento de sessão com contagem/divergência e `cash_movements` (sangria/suprimento) explicitamente adiados para o M14. Tratado como **crítico** (regra 2: "dinheiro" listado explicitamente) — 3 frentes exigidas.
+
+### 2026-09-10 — M13 — G2 Dados/contratos — PASS
+- [schema] `packages/db/src/schema/billing.ts` (novo arquivo): `cashRegisters`, `cashSessions` (índice único parcial `cash_sessions_open_per_register_key`), `payments`. Migration `0010_glossy_hulk.sql`, verificada limpa via `drizzle-kit check`. Seed provisiona um "Caixa único" por tenant (idempotente, `onConflictDoNothing`).
+- [contracts] `packages/contracts/src/payments.ts`: `openCashSessionSchema`, `createPaymentSchema` (3 `refine` encadeados para a regra "troco só em dinheiro" — cobertos por 6 testes unitários próprios), `voidPaymentSchema`.
+- [API] `POST /v1/cash-sessions/open` (`cash.open`), `GET /v1/cash-sessions/current` (qualquer staff), `POST /v1/tabs/:id/payments` (`payments.record`, `Idempotency-Key` obrigatória), `POST /v1/payments/:id/void` (`payments.void`).
+
+### 2026-09-10 — M13 — G3/G7 Feature e dinheiro/caixa (CRÍTICO, 3 frentes) — PASS
+Frentes:
+1. **[unit]** `packages/contracts/test/payments.test.ts` (6 testes): os 3 `refine` do contrato de pagamento (troco proibido fora de dinheiro, troco obrigatório em dinheiro, troco não pode ser menor que o valor cobrado) testados nos dois sentidos (aceita/rejeita).
+2. **[integração, Postgres real, CI]** `apps/api/test/integration/payments.test.ts`: pagamento sem sessão de caixa aberta → `CASH_SESSION_CLOSED`; abrir sessão funciona e uma segunda sessão com a primeira aberta → 409 (índice único, não checagem em código); pagamento parcial em dinheiro reduz o saldo e calcula troco corretamente; estornar pagamento devolve o saldo e estornar duas vezes é idempotente (não duplica); duas requisições com a MESMA `Idempotency-Key` criam só um pagamento (concorrência real via `Promise.all`); **dois pagamentos concorrentes que juntos excedem o saldo — só um vence, o outro recebe `OVERPAYMENT`** (prova real de que o `FOR UPDATE` serializa, não só lido no código); pagamento maior que o saldo isolado também rejeitado, nada gravado no ledger.
+3. **[negativo/isolamento]** sem `payments.record` → 403; sem `payments.void` → 403; comanda de outro tenant → 404, nunca vaza (mesmo com o tenant de destino tendo sua própria sessão de caixa aberta, para não confundir os códigos de erro).
+- **Total: 11 testes de integração novos + 6 unitários novos.**
+
+### 2026-09-10 — M13 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
+Todos verdes no monorepo inteiro (testes de integração exigem Postgres real — não disponível localmente, ENV-1 — rodam na CI). Migration `0010_glossy_hulk.sql` gerada e verificada (`drizzle-kit check`).
+
+### 2026-09-10 — M13 — Gate Git — PENDENTE
+Branch `claude/m13-cash-payments` pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.

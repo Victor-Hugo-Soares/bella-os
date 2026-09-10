@@ -71,6 +71,13 @@
       "when": 1789044505141,
       "tag": "0009_abnormal_lady_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789046663371,
+      "tag": "0010_glossy_hulk",
+      "breakpoints": true
     }
   ]
 }
