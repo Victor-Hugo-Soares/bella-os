@@ -1,17 +1,12 @@
+import { CustomerMenu } from '@/components/customer/customer-menu';
+
 /**
- * Reservado desde o M4 (ADR-014) — cardápio do cliente real é da Fase B (M7).
- * Existe aqui só para provar a estrutura de rotas por superfície: `/{tenant}/m/{mesa}`
- * é o formato que o QR Code físico da mesa vai apontar (DOMAIN_MODEL.md).
+ * Cardápio do cliente (M7, DOMAIN_MODEL.md). `/{tenant}/m/{código}` é o formato que o
+ * QR Code físico da mesa aponta (reservado desde o M4, ADR-014). Server component só
+ * para extrair os params async do App Router; toda a lógica real (abrir sessão,
+ * buscar catálogo, carrinho) é client-side em `CustomerMenu`.
  */
-export default async function CustomerTablePlaceholderPage(
-  props: PageProps<'/[tenant]/m/[table]'>,
-) {
+export default async function CustomerTablePage(props: PageProps<'/[tenant]/m/[table]'>) {
   const { tenant, table } = await props.params;
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <p className="text-sm text-muted-foreground">
-        Cardápio do cliente ({tenant} / mesa {table}) — chega na Fase B.
-      </p>
-    </main>
-  );
+  return <CustomerMenu tenantSlug={tenant} tableCode={table} />;
 }

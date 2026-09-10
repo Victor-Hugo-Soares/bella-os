@@ -197,6 +197,69 @@ export async function setProductAvailability(
   return assertExists(rows, 'Produto não encontrado.');
 }
 
+// --- Leitura pública (M7, cliente sem sessão de staff) -----------------------
+
+export interface PublicCategory {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
+export interface PublicProduct {
+  id: string;
+  categoryId: string;
+  name: string;
+  description: string | null;
+  basePriceCents: number;
+  sortOrder: number;
+}
+
+export interface PublicCatalog {
+  categories: PublicCategory[];
+  products: PublicProduct[];
+}
+
+/**
+ * Cardápio visível ao cliente (M7): só categoria ATIVA e produto ATIVO E DISPONÍVEL
+ * (`is_active=true`, `is_available=true`) — nunca o que está desativado pelo admin ou
+ * esgotado pela cozinha. Roda dentro de `withTenant()` normalmente (tenant já resolvido
+ * pelo slug pelo chamador, mesmo padrão de `openTableSession`, M6) — não é um caso de
+ * exceção de RLS, é uma leitura filtrada dentro do tenant certo. Nenhum campo
+ * administrativo (estação, `prep_time_minutes` interno, etc.) é exposto aqui.
+ */
+export async function listPublicCatalog(db: Db, tenantId: string): Promise<PublicCatalog> {
+  return withTenant(db, tenantId, async (tx) => {
+    const categories = await tx
+      .select({
+        id: schema.categories.id,
+        name: schema.categories.name,
+        sortOrder: schema.categories.sortOrder,
+      })
+      .from(schema.categories)
+      .where(and(eq(schema.categories.tenantId, tenantId), eq(schema.categories.isActive, true)));
+
+    const products = await tx
+      .select({
+        id: schema.products.id,
+        categoryId: schema.products.categoryId,
+        name: schema.products.name,
+        description: schema.products.description,
+        basePriceCents: schema.products.basePriceCents,
+        sortOrder: schema.products.sortOrder,
+      })
+      .from(schema.products)
+      .where(
+        and(
+          eq(schema.products.tenantId, tenantId),
+          eq(schema.products.isActive, true),
+          eq(schema.products.isAvailable, true),
+        ),
+      );
+
+    return { categories, products };
+  });
+}
+
 // --- Grupos de modificador e modificadores -----------------------------------
 
 export async function listModifierGroups(db: Db, tenantId: string) {
