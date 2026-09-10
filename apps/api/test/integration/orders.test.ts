@@ -67,7 +67,7 @@ interface Setup {
 }
 
 async function setupCatalog(cookie: string): Promise<Setup> {
-  const suffix = newId().slice(0, 8);
+  const suffix = newId().slice(-8);
   const headers = { cookie, 'x-tenant-id': bellaTenantId };
   const stationRes = await app.inject({
     method: 'POST',
@@ -94,7 +94,7 @@ async function setupCatalog(cookie: string): Promise<Setup> {
 }
 
 async function openTableSession(): Promise<{ cookie: string; tableSessionId: string }> {
-  const suffix = newId().slice(0, 8);
+  const suffix = newId().slice(-8);
   const ownerCookie = await login(ownerEmail);
   const tableRes = await app.inject({
     method: 'POST',
