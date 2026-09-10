@@ -18,3 +18,9 @@ export const applyDiscountSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 export type ApplyDiscountInput = z.infer<typeof applyDiscountSchema>;
+
+/** `GET /v1/tabs/:id/split?parts=N` (M15) — query string, por isso `z.coerce`. */
+export const tabSplitQuerySchema = z.object({
+  parts: z.coerce.number().int().min(1).max(50),
+});
+export type TabSplitQuery = z.infer<typeof tabSplitQuerySchema>;

@@ -7,6 +7,7 @@ import {
   computeCouvertCents,
   computeServiceFeeCents,
   newId,
+  splitEvenly,
   type BillTotals,
   type CouvertMode,
 } from '@bella/domain';
@@ -624,5 +625,127 @@ export async function closeCashSession(
     }
 
     return { id: cashSessionId, status: 'closed', byMethod };
+  });
+}
+
+export interface TabCloseResult {
+  tabId: string;
+  status: string;
+  itemsTotalCents: number;
+  discountsCents: number;
+  serviceFeeCents: number;
+  couvertCents: number;
+  adjustmentsCents: number;
+  grandTotalCents: number;
+  paidTotalCents: number;
+  closedAt: string;
+}
+
+/**
+ * Fecha a comanda de fato (M15). Idempotente por construção — já `closed` devolve a
+ * `tab_closures` já gravada (mesmo padrão do M11/M13), nunca uma segunda fotografia
+ * (índice único em `tab_closures.tab_id`). Só fecha com `balance = 0` — fechar com
+ * saldo pendente é o pior erro possível aqui (ACTIVE_PLAN.md, Gate de Plano #2).
+ */
+export async function closeTab(
+  db: Db,
+  tenantId: string,
+  tabId: string,
+  actor: BillingActor,
+): Promise<TabCloseResult> {
+  return withTenant(db, tenantId, async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(schema.tabClosures)
+      .where(and(eq(schema.tabClosures.tabId, tabId), eq(schema.tabClosures.tenantId, tenantId)));
+    if (existing) {
+      return {
+        tabId,
+        status: 'closed',
+        itemsTotalCents: existing.itemsTotalCents,
+        discountsCents: existing.discountsCents,
+        serviceFeeCents: existing.serviceFeeCents,
+        couvertCents: existing.couvertCents,
+        adjustmentsCents: existing.adjustmentsCents,
+        grandTotalCents: existing.grandTotalCents,
+        paidTotalCents: existing.paidTotalCents,
+        closedAt: existing.closedAt.toISOString(),
+      };
+    }
+
+    const bill = await computeBill(tx, tenantId, tabId);
+    if (bill.balanceCents !== 0) {
+      throw new AppError(
+        'CONFLICT',
+        `Comanda tem saldo pendente de ${bill.balanceCents} centavos; não pode fechar.`,
+      );
+    }
+
+    const closedAt = new Date();
+    const [closure] = await tx
+      .insert(schema.tabClosures)
+      .values({
+        id: newId(),
+        tenantId,
+        tabId,
+        itemsTotalCents: bill.itemsTotalCents,
+        discountsCents: bill.discountsCents,
+        serviceFeeCents: bill.serviceFeeCents,
+        couvertCents: bill.couvertCents,
+        adjustmentsCents: bill.adjustmentsCents,
+        grandTotalCents: bill.grandTotalCents,
+        paidTotalCents: bill.paidTotalCents,
+        closedBy: actor.userId,
+        closedAt,
+      })
+      .returning();
+
+    await tx
+      .update(schema.tabs)
+      .set({ status: 'closed', closedAt, closedBy: actor.userId })
+      .where(eq(schema.tabs.id, tabId));
+
+    return {
+      tabId,
+      status: 'closed',
+      itemsTotalCents: closure!.itemsTotalCents,
+      discountsCents: closure!.discountsCents,
+      serviceFeeCents: closure!.serviceFeeCents,
+      couvertCents: closure!.couvertCents,
+      adjustmentsCents: closure!.adjustmentsCents,
+      grandTotalCents: closure!.grandTotalCents,
+      paidTotalCents: closure!.paidTotalCents,
+      closedAt: closure!.closedAt.toISOString(),
+    };
+  });
+}
+
+export interface TabSplitResult {
+  tabId: string;
+  balanceCents: number;
+  parts: number;
+  shares: number[];
+}
+
+/**
+ * Sugestão de divisão do saldo restante entre `parts` pessoas (M15) — puramente
+ * informativa, nunca grava nada. Divide o `balance` (quanto falta pagar agora), não o
+ * `grandTotal` original, para continuar útil mesmo com pagamento parcial já feito
+ * (ACTIVE_PLAN.md, Gate de Plano #4). `splitEvenly` já existe desde o M0.
+ */
+export async function getTabSplit(
+  db: Db,
+  tenantId: string,
+  tabId: string,
+  parts: number,
+): Promise<TabSplitResult> {
+  return withTenant(db, tenantId, async (tx) => {
+    const bill = await computeBill(tx, tenantId, tabId);
+    return {
+      tabId,
+      balanceCents: bill.balanceCents,
+      parts,
+      shares: splitEvenly(bill.balanceCents, parts),
+    };
   });
 }

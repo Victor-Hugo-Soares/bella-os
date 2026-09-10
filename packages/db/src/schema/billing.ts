@@ -147,6 +147,37 @@ export const cashMovements = pgTable(
   ],
 ).enableRLS();
 
+export const tabClosures = pgTable(
+  'tab_closures',
+  {
+    id: idColumn(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    tabId: uuid('tab_id')
+      .notNull()
+      .references(() => tabs.id, { onDelete: 'restrict' }),
+    itemsTotalCents: bigint('items_total_cents', { mode: 'number' }).notNull(),
+    discountsCents: bigint('discounts_cents', { mode: 'number' }).notNull(),
+    serviceFeeCents: bigint('service_fee_cents', { mode: 'number' }).notNull(),
+    couvertCents: bigint('couvert_cents', { mode: 'number' }).notNull(),
+    adjustmentsCents: bigint('adjustments_cents', { mode: 'number' }).notNull(),
+    grandTotalCents: bigint('grand_total_cents', { mode: 'number' }).notNull(),
+    paidTotalCents: bigint('paid_total_cents', { mode: 'number' }).notNull(),
+    closedBy: uuid('closed_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    closedAt: timestamp('closed_at', { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    // Nunca duas fotografias para a mesma comanda (M15, ACTIVE_PLAN.md #2) — o índice
+    // único é o que torna `closeTab` idempotente por construção sem checagem em código.
+    uniqueIndex('tab_closures_tab_id_key').on(t.tabId),
+    tenantIsolationPolicy(t.tenantId),
+  ],
+).enableRLS();
+
 export const cashDivergences = pgTable(
   'cash_divergences',
   {

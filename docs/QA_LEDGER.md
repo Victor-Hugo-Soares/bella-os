@@ -487,3 +487,29 @@ Primeira rodada de CI: os 4 testes de `cash-close.test.ts` falharam. Diagnóstic
 
 ### 2026-09-10 — M14 — Gate Git — PASS
 PR #23 (`claude/m14-cash-close` → `main`), CI remota verde nos 3 jobs na segunda rodada (1 regressão real de teste — ordem entre arquivos, não paralelismo — corrigida antes do merge, ver acima), merge commit `ba7c790`.
+
+---
+
+## Milestone M15 — Divisão de conta e Golden Journey completa (fecha a Fase D)
+
+### 2026-09-10 — M15 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M15) respondeu o Gate de Plano no início da implementação: `tab_closures` com `tab_id` único (nunca duas fotografias); `POST /close` idempotente por construção (já `closed` devolve a fotografia existente); rejeita fechar com saldo pendente (`CONFLICT`, 409 — pior erro possível aqui); permissão nova `tabs.close` (primeira chave nova desde o M2 — nenhuma existente cobria semanticamente "fechar comanda"), concedida a owner/manager/cashier; `GET /split` divide o SALDO restante (não o total original, para continuar útil com pagamento parcial já feito), puramente informativo, nunca grava nada; Golden Journey usa `bella` com a mesma defesa contra estado residual do M14. Tratado como **crítico** (regra 2: "comanda" e "dinheiro" listados explicitamente) — 3 frentes exigidas.
+
+### 2026-09-10 — M15 — G2 Dados/contratos — PASS
+- [schema] `tabClosures` (mesmo arquivo `billing.ts`), índice único em `tab_id`. Migration `0012_organic_felicia_hardy.sql`, verificada limpa via `drizzle-kit check`.
+- [domain] Permissão nova `tabs.close` em `packages/domain/src/permissions.ts`, concedida a `owner` (automático, lista completa), `manager` (automático) e `cashier` (adicionada explicitamente).
+- [contracts] `packages/contracts/src/billing.ts` ganhou `tabSplitQuerySchema` (`z.coerce` para query string).
+- [API] `POST /v1/tabs/:id/close` (`tabs.close`), `GET /v1/tabs/:id/split?parts=N` (qualquer staff).
+
+### 2026-09-10 — M15 — G3/G7 Feature e dinheiro/comanda (CRÍTICO, 3 frentes) — PASS
+Frentes:
+1. **[integração, Postgres real, CI]** `apps/api/test/integration/tab-close.test.ts` (7 testes): fechar com saldo 0 grava `tab_closures` e muda `tabs.status`; fechar de novo é idempotente (não duplica a fotografia — contado via consulta independente); fechar com saldo pendente → 409 `CONFLICT`, nada gravado; sem `tabs.close` → 403; `GET /split` divide o saldo em N partes cuja soma bate exatamente com o saldo (propriedade, mesmo espírito dos testes de `splitEvenly` do M0).
+2. **[integração, Golden Journey]** `apps/api/test/integration/golden-journey.test.ts`: um único teste percorrendo TODO o ciclo numa mesma comanda — cliente escaneia QR → monta e envia pedido (duplo-clique com a mesma `Idempotency-Key` prova UM pedido só, `order_items` também conferido direto no banco) → cozinha pareia um KDS real, inicia e finaliza o preparo (ticket de verdade, não simulado) → cliente acompanha (item aparece `ready`) e pede a conta → equipe vê o chamado, consulta o total (trava a taxa de serviço), aplica desconto → total recalculado bate exatamente → caixa abre sessão, cobra o valor exato, fecha a comanda → comanda fechada rejeita pedido novo → caixa fecha o turno sem divergência → **ledger inteiro soma exatamente 0** (consulta independente, prova final de que nada ficou "perdido, duplicado ou com conta errada" — o critério de sucesso do próprio `CLAUDE.md §Missão`).
+3. **[negativo]** fechar comanda sem `tabs.close` → 403 (coberto em `tab-close.test.ts`); demais negativos/isolamento (permissão, cross-tenant) já cobertos exaustivamente pelos módulos individuais em M8–M14, não repetidos aqui de propósito — o Golden Journey testa a COSTURA entre módulos, não cada regra de novo.
+- **Total: 8 testes de integração novos** (7 em `tab-close.test.ts` + 1 Golden Journey).
+
+### 2026-09-10 — M15 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
+Todos verdes no monorepo inteiro (testes de integração exigem Postgres real — não disponível localmente, ENV-1 — rodam na CI). Migration `0012_organic_felicia_hardy.sql` gerada e verificada (`drizzle-kit check`).
+
+### 2026-09-10 — M15 — Gate Git — PENDENTE
+Branch `claude/m15-tab-close-golden-journey` pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.

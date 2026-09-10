@@ -24,8 +24,13 @@ Duas lacunas fecham a Fase D: (1) o saldo da comanda pode chegar a 0 (M13), mas 
 2. Integração: fechar comanda com saldo 0 → `tabs.status = 'closed'` + `tab_closures` gravada; fechar com saldo ≠ 0 → rejeitado, nada gravado; comanda fechada rejeita pedido novo e pagamento novo.
 3. Golden Journey: teste de integração único, ponta a ponta, cobrindo cliente→cozinha→salão→caixa→fechamento numa mesma comanda.
 
-### Gate de Plano (a responder no início da execução do M15)
-A preencher no início da implementação.
+### Gate de Plano (respondido no início da execução do M15)
+1. **`tab_closures` no mesmo `packages/db/src/schema/billing.ts`** (financeiro, DOMAIN_MODEL.md §1.6) — `tab_id` único (nunca duas fotografias da mesma comanda), campos exatamente os já calculados por `computeBill` (nada novo a inventar).
+2. **`POST /v1/tabs/:id/close` é idempotente por construção**: se a comanda já está `closed`, devolve a `tab_closures` já gravada (mesmo padrão do M11/M13) em vez de erro — nunca duas fotografias para a mesma comanda. Se `balance ≠ 0`, rejeita com `CONFLICT` (409) — fechar com saldo pendente é o pior erro possível aqui (regra 2 do CLAUDE.md, "comanda" listada explicitamente).
+3. **Permissão de fechar comanda**: `payments.record` não cobre (é sobre registrar dinheiro entrando, não sobre fechar); decisão: reaproveitar `discounts.apply`? Não — nenhuma chave existente encaixa semanticamente. Nova chave **`tabs.close`** em `packages/domain/src/permissions.ts`, concedida a `owner`/`manager`/`cashier` (mesmo conjunto de `payments.record`) — é a primeira permissão nova desde o M2, mas "fechar comanda" é uma ação de negócio distinta o bastante (M11/M12/M13/M14 sempre couberam em chaves já existentes; esta não cabe).
+4. **`GET /v1/tabs/:id/split?parts=N` divide o SALDO restante** (`balanceCents`), não o `grandTotal` original — é "quanto cada um ainda precisa pagar agora", útil mesmo se já houve pagamento parcial. Puramente informativo (`splitEvenly` de `@bella/domain`, já existe desde o M0), nunca grava nada. Leitura por qualquer staff (`requireAnySession`, mesmo raciocínio do `GET /bill`).
+5. **Golden Journey usa o tenant `bella`**, com o MESMO cuidado defensivo do M14 (`cash-close.test.ts`): fecha qualquer sessão de caixa aberta residual de outros arquivos de teste antes de começar, nunca assume um registrador livre só porque "deveria" estar.
+6. **Divisão por item/pessoa fica fora do MVP** (confirmado: `PRODUCT_CONTEXT.md §2` Q1 já tem esse default desde o bootstrap) — sem tela real que precise disso ainda.
 
 ---
 
