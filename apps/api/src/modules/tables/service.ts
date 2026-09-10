@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { Db } from '@bella/db';
 import { schema, withoutTenant, withTenant } from '@bella/db';
 import { generateDeviceToken, generateTableCode, hashDeviceToken, newId } from '@bella/domain';
@@ -273,4 +273,92 @@ export async function resolveGuestActor(db: Db, rawToken: string | undefined): P
     tableSessionId: guest.tableSessionId,
     tabId: guest.tabId,
   };
+}
+
+// --- Chamados (M10) ---------------------------------------------------------
+
+export interface ServiceRequestInput {
+  kind: 'call_waiter' | 'request_bill' | 'other';
+  note?: string | undefined;
+}
+
+export async function createServiceRequest(
+  db: Db,
+  tenantId: string,
+  tableSessionId: string,
+  guestId: string,
+  input: ServiceRequestInput,
+) {
+  const [row] = await withTenant(db, tenantId, (tx) =>
+    tx
+      .insert(schema.serviceRequests)
+      .values({
+        id: newId(),
+        tenantId,
+        tableSessionId,
+        createdByGuestId: guestId,
+        kind: input.kind,
+        note: input.note ?? null,
+      })
+      .returning(),
+  );
+  return row!;
+}
+
+export async function listOpenServiceRequests(db: Db, tenantId: string) {
+  return withTenant(db, tenantId, (tx) =>
+    tx
+      .select()
+      .from(schema.serviceRequests)
+      .where(
+        and(
+          eq(schema.serviceRequests.tenantId, tenantId),
+          inArray(schema.serviceRequests.status, ['open', 'acknowledged']),
+        ),
+      ),
+  );
+}
+
+type ServiceRequestTransition = 'acknowledge' | 'done';
+const SERVICE_REQUEST_RULES: Record<ServiceRequestTransition, { from: string[]; to: string }> = {
+  acknowledge: { from: ['open'], to: 'acknowledged' },
+  done: { from: ['open', 'acknowledged'], to: 'done' },
+};
+
+export async function transitionServiceRequest(
+  db: Db,
+  tenantId: string,
+  requestId: string,
+  userId: string,
+  transition: ServiceRequestTransition,
+) {
+  const rule = SERVICE_REQUEST_RULES[transition];
+  return withTenant(db, tenantId, async (tx) => {
+    const [updated] = await tx
+      .update(schema.serviceRequests)
+      .set({ status: rule.to, handledBy: userId })
+      .where(
+        and(
+          eq(schema.serviceRequests.id, requestId),
+          eq(schema.serviceRequests.tenantId, tenantId),
+          inArray(schema.serviceRequests.status, rule.from),
+        ),
+      )
+      .returning();
+    if (updated) return updated;
+
+    // Idempotente: já está (ou passou) do estado alvo — devolve o estado atual em
+    // vez de erro, mesmo espírito do bump de ticket do M9.
+    const [current] = await tx
+      .select()
+      .from(schema.serviceRequests)
+      .where(
+        and(
+          eq(schema.serviceRequests.id, requestId),
+          eq(schema.serviceRequests.tenantId, tenantId),
+        ),
+      );
+    if (!current) throw new AppError('NOT_FOUND', 'Chamado não encontrado.');
+    return current;
+  });
 }

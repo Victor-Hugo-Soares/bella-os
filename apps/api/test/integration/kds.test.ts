@@ -270,3 +270,30 @@ describe('KDS — listagem e transição de ticket', () => {
     expect(res.statusCode).toBe(403);
   });
 });
+
+describe('expedição (M10) — GET /v1/tickets/ready, visão de staff', () => {
+  it('ticket marcado como ready pelo KDS aparece na expedição de qualquer staff', async () => {
+    const { ticketId, stationId } = await createOrderWithProduct();
+    const kdsToken = await pairKdsDevice([stationId]);
+    await app.inject({
+      method: 'POST',
+      url: `/v1/kds/tickets/${ticketId}/start`,
+      headers: { 'x-device-token': kdsToken },
+    });
+    await app.inject({
+      method: 'POST',
+      url: `/v1/kds/tickets/${ticketId}/ready`,
+      headers: { 'x-device-token': kdsToken },
+    });
+
+    const cookie = await login(ownerEmail);
+    const readyRes = await app.inject({
+      method: 'GET',
+      url: '/v1/tickets/ready',
+      headers: { cookie, 'x-tenant-id': bellaTenantId },
+    });
+    expect(readyRes.statusCode, readyRes.body).toBe(200);
+    const tickets = (readyRes.json() as { tickets: Array<{ id: string }> }).tickets;
+    expect(tickets.some((t) => t.id === ticketId)).toBe(true);
+  });
+});

@@ -30,8 +30,10 @@ O cliente envia o pedido (M8) e a cozinha o vê e prepara (M9), mas o cliente fi
 1. Integração: aceitar/rejeitar pedido muda o estado certo; chamado é criado e aparece para staff; cliente só vê os próprios pedidos/chamados (nunca de outra sessão/tenant).
 2. E2E manual real: cliente chama garçom, staff vê o chamado; status do pedido muda na tela do cliente quando o KDS avança o ticket.
 
-### Gate de Plano (a responder no início da execução do M10)
-A preencher no início da implementação — este plano ainda não teve o Gate respondido (checkpoint da sessão antes de continuar).
+### Gate de Plano (respondido em 2026-09-10)
+Problema entendido (cliente sem retorno após enviar pedido; sessão não verificada sem caminho de aceite) · solução menor não existiria (precisa de estado real de pedido + canal de chamado) · risco principal é ESCOPO — cortado ainda mais nesta execução: **sem SSE dedicado ao cliente** (adiado; o cliente usa polling a cada poucos segundos do próprio status, que já satisfaz "muda em <3s" sem duplicar a lógica de autenticação dupla do M9) · prova por integração real + E2E manual · rollback trivial (tabela/rotas novas) · multi-tenant preservado (tudo dentro de `withTenant()`, ator resolvido por guest ou staff conforme a rota).
+
+**Corte adicional registrado nesta execução:** "expedição" (tickets prontos) e "chamados" (service_requests) convergem numa única tela de staff (`/admin/service-requests`) em vez de duas telas separadas — mesma tela, duas listas. SSE do cliente fica para um M10.1 se a latência do polling se mostrar insuficiente na prática.
 
 ## Próximos milestones (resumo; detalhes em `ROADMAP.md`)
 M11 cancelamentos/pedido pela equipe (UI) → Fase D (M12–M15: ledger completo, caixa, pagamentos, divisão de conta, Golden Journey completa).

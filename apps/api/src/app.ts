@@ -96,7 +96,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       webOriginIsHttps: config.NODE_ENV === 'production',
     });
     await app.register(orderRoutes, { db: db.db, auth });
-    await app.register(kdsRoutes, { db: db.db });
+    await app.register(kdsRoutes, { db: db.db, auth });
     await app.register(realtimeRoutes, { db: db.db });
   }
 

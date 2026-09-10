@@ -57,6 +57,13 @@
       "when": 1789007198917,
       "tag": "0007_rare_shen",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789041860046,
+      "tag": "0008_flowery_leper_queen",
+      "breakpoints": true
     }
   ]
 }

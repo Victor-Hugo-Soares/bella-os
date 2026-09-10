@@ -22,9 +22,9 @@ import { users } from './identity';
  * princípio de "descobrir o tenant primeiro" de `resolveDeviceActor`, só que a chave
  * inicial aqui é o slug da URL, não um hash de token.
  *
- * Escopo do M6 (ACTIVE_PLAN.md): sem `service_requests` (chamar garçom/pedir conta —
- * Fase C, precisa de UI de salão que ainda não existe) e sem
- * `table_session_transfers` (transferência de mesa é M11) — reservados, não modelados.
+ * `service_requests` chega no M10 (chamar garçom/pedir conta). Sem
+ * `table_session_transfers` ainda (transferência de mesa é M11) — reservado, não
+ * modelado.
  */
 
 export const areas = pgTable(
@@ -154,3 +154,37 @@ export const guests = pgTable(
   },
   (t) => [uniqueIndex('guests_token_hash_key').on(t.tokenHash)],
 );
+
+/**
+ * Chamados do cliente (M10, DOMAIN_MODEL.md §1.4): "chamar garçom" / "pedir a conta".
+ * Criado pelo `guest` (cookie de sessão de mesa, M6); atendido/concluído por staff
+ * (`requirePermission`). RLS normal (ADR-021) — diferente de `guests`, esta tabela só
+ * é gravada DEPOIS que o guest já foi resolvido (a criação passa por `withTenant()`
+ * com o tenant do guest já conhecido, nunca antes disso).
+ */
+export const serviceRequests = pgTable(
+  'service_requests',
+  {
+    id: idColumn(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    tableSessionId: uuid('table_session_id')
+      .notNull()
+      .references(() => tableSessions.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    note: text('note'),
+    status: text('status').notNull().default('open'),
+    createdByGuestId: uuid('created_by_guest_id'),
+    handledBy: uuid('handled_by').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [
+    check(
+      'service_requests_kind_check',
+      sql`${t.kind} in ('call_waiter', 'request_bill', 'other')`,
+    ),
+    check('service_requests_status_check', sql`${t.status} in ('open', 'acknowledged', 'done')`),
+    tenantIsolationPolicy(t.tenantId),
+  ],
+).enableRLS();

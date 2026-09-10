@@ -333,3 +333,38 @@ Frentes (`apps/api/test/integration/{kds,realtime}.test.ts`, Postgres real na CI
 
 ### 2026-09-10 — M9 — `pnpm check` + build do monorepo — PASS
 `pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo `/kds` (conteúdo real, antes placeholder do M4) e `/admin/devices` (novo) no build de produção.
+
+### 2026-09-10 — M9 — Gate Git — PASS
+PR #15 (`claude/m9-kds-realtime` → `main`), CI remota verde nos 3 jobs (73/73 testes), merge commit `17d8f53`.
+
+---
+
+## Milestone M10 — Acompanhamento, expedição e chamados (Fase C)
+
+### 2026-09-10 — M10 — G1 Plano — PASS
+`docs/ACTIVE_PLAN.md` (versão M10) registrou dois cortes de escopo antes de codar, e um terceiro durante a execução: SSE dedicado ao cliente adiado (polling a cada 3s resolve o gate "muda em <3s" com muito menos complexidade); chamados e expedição numa tela só de staff. Gate de Plano respondido no próprio arquivo.
+
+### 2026-09-10 — M10 — G2/G3 Dados e feature — PASS
+- [schema] `service_requests` (migration `0008`), RLS normal.
+- [API] `POST /public/:tenantSlug/service-requests`, `GET /v1/service-requests`, `PATCH /v1/service-requests/:id/{acknowledge,done}`; `PATCH /v1/orders/:id/{accept,reject}` (resolve a pendência do M8: sessão não verificada ficava `submitted` sem caminho de decisão); `GET /public/:tenantSlug/orders` (acompanhamento do cliente); `GET /v1/tickets/ready` (expedição, staff, todas as estações).
+- **Achado real de produto (não hipotético, pego testando de verdade no browser):** o botão "Ver carrinho" do M7 nunca chamava a API de pedido do M8 — o ciclo cliente→pedido→cozinha só fechava tecnicamente por trás (via testes de API), nunca de fato pela UI do cliente. Corrigido: tela de carrinho real com botão "Enviar pedido" ligado à `Idempotency-Key` já gerada pelo carrinho (M7). Ver ADR-034.
+- **Achado real de UI:** status de item (`order_items.status`) aparecia cru na tela do cliente ("queued") por o mapa de tradução só cobrir status de pedido, não de item — dois conjuntos de valores parecidos, mas diferentes. Corrigido.
+- **Achado real de QA:** duas telas novas (`/admin/devices`, `/admin/service-requests`) ficavam em branco (sem loading/erro) quando o tenant não carregava — só apareceu testando com uma API que não respondia `/v1/me/tenants`, simulando o caso real de erro de rede. Corrigido nas duas (`FRONTEND_GUIDELINES.md §7`, 4 estados obrigatórios).
+
+### 2026-09-10 — M10 — G3/G4 Feature e integração cliente→salão — PASS
+Frentes (`apps/api/test/integration/{service-requests,kds}.test.ts`, Postgres real na CI):
+- Cliente chama garçom → staff vê na lista de chamados abertos → atende → chamado some da lista.
+- Marcar chamado como concluído duas vezes é idempotente (mesmo padrão do bump de ticket, M9).
+- Chamado de um tenant não aparece na lista de outro.
+- Pedido de cliente nasce `submitted`; `accept` muda para `accepted` e aparece assim no acompanhamento do próprio cliente; `reject` muda para `rejected`; aceitar um pedido já rejeitado não muda o estado (idempotente pelo estado atual — `UPDATE ... WHERE status='submitted'` não afeta nada, estado atual é devolvido).
+- Cliente só vê os próprios pedidos (nunca de outra sessão de mesa).
+- Ticket marcado `ready` pelo KDS aparece na expedição de qualquer staff (não só de quem tem aquela estação — expedição é visão tenant-wide de propósito).
+- **Total: 8 testes novos** (7 em `service-requests.test.ts` + 1 em `kds.test.ts`).
+
+### 2026-09-10 — M10 — G5 UX (cliente + staff) — PASS
+- [E2E manual real, browser] Fluxo completo do cliente testado de ponta a ponta com um servidor Node simulando as rotas públicas (sem Postgres local, ENV-1): adicionar item → abrir carrinho → **enviar pedido de verdade** → tela de acompanhamento mostra "Pedido #1 · Aguardando confirmação · Na fila" → **chamar garçom confirma na tela** → status muda para "Confirmado" sozinho via polling, dentro de poucos segundos (prova real do requisito "<3s", não só lido no código). Testado em mobile (375px).
+- [E2E manual real, browser] `/admin/service-requests` mostra estado de erro correto (antes ficava em branco) quando a API não responde.
+- **Limitação real registrada:** sem Postgres local, o fluxo completo não foi testado com dados reais de ponta a ponta (cliente → staff aceita → KDS prepara → cliente vê "Pronto") — só via CI (Postgres real, por partes) + E2E manual com API simulada.
+
+### 2026-09-10 — M10 — `pnpm check` + build do monorepo — PASS
+`pnpm check` e `pnpm build` verdes no monorepo inteiro, incluindo `/admin/service-requests` (novo) no build de produção.
