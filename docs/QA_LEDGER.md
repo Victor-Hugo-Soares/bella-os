@@ -536,5 +536,8 @@ Q7 (`PRODUCT_CONTEXT.md §2`): cozinha por enquanto é só tela, sem impressora 
 ### 2026-09-10 — M16 — `pnpm lint`/`typecheck`/`test`/`build` — PASS
 Todos verdes no monorepo inteiro. Sem migration (nenhuma tabela nova).
 
+### 2026-09-10 — M16 — Regressão pega pela CI (regra 3 do CLAUDE.md) — corrigida
+Primeira rodada de CI: o teste de faturamento esperava `3000` e recebeu `190600`. Diagnóstico: a janela usada era "últimos 60s até próximos 60s" — mas a suíte de integração inteira roda em menos de um minuto, e o tenant `bella` é reaproveitado por vários arquivos de teste (`payments.test.ts`, `golden-journey.test.ts`, `tab-close.test.ts`, ...); a janela larga capturou pedidos de OUTROS arquivos que rodaram segundos antes, não só do próprio teste. Não era bug de produção — a consulta fez exatamente o que devia com o intervalo que recebeu. Corrigido: `from`/`to` agora são capturados imediatamente antes/depois das próprias ações do teste (janela mínima, não "últimos N segundos"). Retestado — verde.
+
 ### 2026-09-10 — M16 — Gate Git — PENDENTE
 Branch pronta para abrir PR; aguardando CI remota. Atualizar para PASS com número da PR e commit de merge assim que fechar.

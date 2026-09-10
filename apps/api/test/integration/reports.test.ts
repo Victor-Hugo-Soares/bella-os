@@ -193,7 +193,10 @@ afterAll(async () => {
 
 describe('GET /v1/reports/daily', () => {
   it('faturamento, ticket médio, mais vendidos e agregações por operador batem com o esperado', async () => {
-    const from = new Date(Date.now() - 60_000).toISOString();
+    // Janela estreita ao redor do próprio teste — a suíte inteira roda em menos de um
+    // minuto, então uma janela larga (ex.: "últimos 60s") capturaria pedidos de OUTROS
+    // arquivos de teste no mesmo tenant `bella` (achado real, pego pela própria CI).
+    const from = new Date().toISOString();
     const setup = await createTabWithTwoItems();
     const ownerCookie = await login(ownerEmail);
     const headers = { cookie: ownerCookie, 'x-tenant-id': bellaTenantId };
@@ -216,7 +219,7 @@ describe('GET /v1/reports/daily', () => {
     });
     expect(discountRes.statusCode, discountRes.body).toBe(201);
 
-    const to = new Date(Date.now() + 60_000).toISOString();
+    const to = new Date().toISOString();
     const res = await app.inject({
       method: 'GET',
       url: `/v1/reports/daily?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
