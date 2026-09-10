@@ -34,8 +34,18 @@ O Bella III recebe pagamento na maquininha de cartão física, **fora do sistema
 2. Integração (Postgres real, CI): abrir sessão → registrar pagamento parcial → saldo reduz corretamente (consulta independente ao ledger, mesmo padrão do M11/M12); pagamento que excede o saldo → `OVERPAYMENT`; estornar pagamento → saldo volta; dois pagamentos concorrentes que juntos excedem o saldo → só um vence.
 3. Negativo/isolamento: pagamento sem `payments.record` → 403; pagamento sem sessão de caixa aberta → `CASH_SESSION_CLOSED`; comanda de outro tenant → 404.
 
-### Gate de Plano (a responder no início da execução do M13)
-A preencher no início da implementação.
+### Gate de Plano (respondido no início da execução do M13)
+1. **Schema novo em `packages/db/src/schema/billing.ts`** (nome do arquivo casa com o módulo da API do M12): `cashRegisters`, `cashSessions`, `payments`. RLS normal (ADR-021), sem exceção — nenhuma dessas tabelas precisa resolver identidade antes do tenant (diferente de `devices`/`guests`, ADR-025).
+2. **Um registrador por tenant, provisionado no seed** — mesmo padrão de `tenant_settings` (uma linha sempre existe). Sem CRUD de `cash_registers` neste milestone (YAGNI: nenhum tenant real com mais de um caixa ainda).
+3. **`cash_sessions` usa o mesmo padrão de índice único parcial** do `table_sessions_open_per_table_key` (M6): `uniqueIndex('cash_sessions_open_per_register_key').on(cashRegisterId).where(status <> 'closed')` — impossível abrir duas sessões na mesma registradora sob concorrência real, sem checagem em código.
+4. **`payments.amountCents` nunca excede o saldo atual** — reaproveita `getBill()` do M12 dentro da mesma transação (`FOR UPDATE` na `tab`, mesmo padrão do M8/M12) para ler o saldo e decidir `OVERPAYMENT` antes de gravar. Código de erro `OVERPAYMENT`/`CASH_SESSION_CLOSED` já reservados desde o M0 — reaproveitados, não reinventados.
+5. **Troco só existe em dinheiro:** contrato `createPaymentSchema` com `refine` — `method !== 'cash'` proíbe `tenderedCents`/`changeCents`; `method === 'cash'` exige `tenderedCents >= amountCents` e calcula `changeCents = tenderedCents - amountCents` no servidor (nunca confiar em `changeCents` vindo do corpo).
+6. **`POST /v1/tabs/:id/payments` exige `Idempotency-Key`** (mesmo padrão do M8 `createOrder`, via `withIdempotency`) — é a primeira mutação de dinheiro ENTRANDO no sistema (diferente de `item_charge`, que é derivado do pedido); duplo-clique no botão "registrar pagamento" não pode criar dois pagamentos.
+7. **`POST /v1/payments/:id/void` idempotente por construção** (mesmo padrão do `cancelOrderItem` do M11): já `voided` devolve sem duplicar o estorno.
+8. **Escopo cortado conscientemente** (ver seção acima): fechamento de sessão com contagem/divergência (M14), `cash_movements` de sangria/suprimento (M14), fechar a comanda de fato (M14/M15).
+
+### Frentes efetivamente cobertas nos testes de integração
+`cash-sessions.test.ts` (abrir sessão, uma por registrador, índice único sob concorrência) e `payments.test.ts` (registrar pagamento parcial reduz saldo, overpayment rejeitado, estorno devolve saldo, dois pagamentos concorrentes que juntos excedem o saldo — só um vence, permissão positiva/negativa, isolamento cross-tenant).
 
 ## Próximos milestones (resumo; detalhes em `ROADMAP.md`)
 M14 fechamento de caixa e relatórios → M15 divisão de conta e Golden Journey completa (fim da Fase D).

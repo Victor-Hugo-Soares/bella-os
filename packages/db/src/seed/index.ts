@@ -3,7 +3,15 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_ROLE_PERMISSIONS, SYSTEM_ROLES, newId } from '@bella/domain';
 import { eq } from 'drizzle-orm';
 import { createDb, type DbHandle } from '../client';
-import { memberships, roles, rolePermissions, tenantSettings, tenants, users } from '../schema';
+import {
+  cashRegisters,
+  memberships,
+  roles,
+  rolePermissions,
+  tenantSettings,
+  tenants,
+  users,
+} from '../schema';
 import { withTenant, withoutTenant } from '../tenant-context';
 
 export interface SeedTenantSpec {
@@ -46,6 +54,12 @@ async function upsertTenant(db: DbHandle['db'], spec: SeedTenantSpec): Promise<s
       .insert(tenantSettings)
       .values({ tenantId: tenant.id })
       .onConflictDoNothing({ target: tenantSettings.tenantId });
+
+    // Um registrador de caixa por tenant (M13, ACTIVE_PLAN.md — sem CRUD ainda, YAGNI).
+    await tx
+      .insert(cashRegisters)
+      .values({ id: newId(), tenantId: tenant.id, name: 'Caixa único' })
+      .onConflictDoNothing({ target: [cashRegisters.tenantId, cashRegisters.name] });
 
     return tenant.id;
   });

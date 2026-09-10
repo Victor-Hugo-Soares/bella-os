@@ -9,3 +9,4 @@ export * from './devices';
 export * from './catalog';
 export * from './tables';
 export * from './orders';
+export * from './billing';
