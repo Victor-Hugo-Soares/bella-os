@@ -12,10 +12,11 @@ Construir e operar o Bella OS: sistema completo de restaurante para o Bella III 
 
 ## GitHub e identidade (gate G0 em toda sessão)
 
-- Repositório: `https://github.com/Victor-Hugo-Soares/bella-os.git` (branch `main`).
-- Identidade local do repo: `Victor Hugo <116037876+Victor-Hugo-Soares@users.noreply.github.com>`. Conferir com `git config user.email`.
-- A máquina tem outras contas no GitHub CLI. Antes de push: `gh auth status` deve mostrar `Victor-Hugo-Soares` ativa (senão `gh auth switch --user Victor-Hugo-Soares`).
+- **Repositório transferido em 2026-09-10**: era `Victor-Hugo-Soares/bella-os`, agora é `https://github.com/arnia-brasil/bella-os.git` (branch `main`). Remote local já atualizado (`git remote set-url origin ...`).
+- Identidade local do repo: `Arnia Brasil <317937930+arnia-brasil@users.noreply.github.com>`. Conferir com `git config user.email`.
+- A máquina tem outras contas no GitHub CLI (`victorlins-dev`, `Victor-Hugo-Soares`, `arnia-brasil`). Antes de push: `gh auth status` deve mostrar `arnia-brasil` ativa (senão `gh auth switch --user arnia-brasil && gh auth setup-git`).
 - Branches de trabalho `claude/<tema>`; `main` só com CI verde. Nunca force-push em `main`.
+- **Em produção real no Railway desde 2026-09-10** (projeto `bella-os`, conta `arniabrasil@gmail.com`): `api` em `https://api-production-f7d1.up.railway.app`, `web` em `https://web-production-751e3.up.railway.app`, Postgres gerenciado. Migrations e papel `bella_app` já aplicados; seed de dados reais do Bella III ainda pendente (banco vazio de propósito). Detalhes completos, IDs e achados reais da configuração: `docs/RUNBOOK_DEPLOY.md`.
 
 ## Regras absolutas
 
@@ -46,21 +47,21 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 
 ## Estado atual
 
-- Fase: **D completa** (M8–M15). Fase **E** (M16/M18/M20) concluída 2026-09-10. **Frente de design 2026-09-11**: Victor desenhou as 20 telas do produto no Claude Design e aprovou a direção visual; **M21–M25 concluídos e mergeados**: fundação do design system, re-skin das 3 superfícies + comandas/caixa/relatório do dia (telas novas pra API que já existia). **2026-09-10, mesmo dia, nova frente pedida direto pelo Victor**: levantamento de prontidão de produção + "faça AGORA tudo que pudermos fazer sem pagar nada" → **M-PROD1 concluído e mergeado**: config de produção obrigatória (`APP_DATABASE_URL`/`BETTER_AUTH_SECRET`/`WEB_ORIGIN`), rate limiting, security headers, config Railway (`railway.json` em `apps/api`/`apps/web`), `docs/RUNBOOK_DEPLOY.md` novo. Detalhes: `docs/ACTIVE_PLAN.md`.
-- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `Victor-Hugo-Soares` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (17+ bugs/gaps reais entre M0–M-PROD1). **Rodar `pnpm check` (root) antes de push, não só lint/typecheck/build isolados** — `apps/web` tem seu próprio `eslint.config.mjs` mais estrito que o da CI, e `pnpm format` (prettier) já pegou 2 regressões que checks parciais não pegavam (M24, M-PROD1 — esta última no próprio job de smoke da CI, não local).
+- Fase: **D completa** (M8–M15). Fase **E** (M16/M18/M20) concluída 2026-09-10. **Frente de design 2026-09-11**: Victor desenhou as 20 telas do produto no Claude Design e aprovou a direção visual; **M21–M25 concluídos e mergeados**: fundação do design system, re-skin das 3 superfícies + comandas/caixa/relatório do dia (telas novas pra API que já existia). **2026-09-10, mesmo dia, nova frente pedida direto pelo Victor**: levantamento de prontidão de produção + "faça AGORA tudo que pudermos fazer sem pagar nada" → **M-PROD1 concluído e mergeado**: config de produção obrigatória (`APP_DATABASE_URL`/`BETTER_AUTH_SECRET`/`WEB_ORIGIN`), rate limiting, security headers. **Depois disso, ainda 2026-09-10**: repositório transferido pra `arnia-brasil`, projeto Railway real criado e **colocado em produção de verdade** (ver linha acima). Detalhes: `docs/ACTIVE_PLAN.md`.
+- Ambiente: Windows 11, Node 24, pnpm 10.34.5, gh ativo `arnia-brasil` (**checar `gh auth status` imediatamente antes de CADA push** — volta sozinho para outra conta com frequência, ver ENV-6); Docker Desktop com falha (ENV-1); workspace em OneDrive (ENV-5). CI é a frente de integração — já provada confiável (17+ bugs/gaps reais entre M0–M-PROD1). **Rodar `pnpm check` (root) antes de push, não só lint/typecheck/build isolados** — `apps/web` tem seu próprio `eslint.config.mjs` mais estrito que o da CI, e `pnpm format` (prettier) já pegou várias regressões que checks parciais não pegavam (M24, M-PROD1, e de novo no PR do deploy pro Railway — sempre rodar `pnpm format:fix` antes de commitar `CLAUDE.md`/docs).
 - **Modo de execução: hands-off desde 2026-09-10.**
-- Branch: `main`. Último commit: merge PR #33 (M-PROD1), `5b23c02`. CI verde nos **4 jobs** em M21–M-PROD1 (uma correção real no meio do caminho em M24 e em M-PROD1, ambas descritas em `QA_LEDGER.md`).
+- Branch: `main`. Último commit relevante: merge PR #33 (M-PROD1), `5b23c02` — mais o PR de transferência/deploy Railway em andamento (ver `docs/RUNBOOK_DEPLOY.md` pro estado mais atual, que muda mais rápido que este arquivo).
 - **Confirmado pelo Victor (2026-09-10):** pagamento na maquininha física, ADMIN dá baixa manual, sem PSP/TEF (`docs/PRODUCT_CONTEXT.md §2` Q6). Cozinha só tela por enquanto (Q7).
 - **Lição real do M20, vale pra qualquer stream futuro:** um comentário SSE (`: texto`) é invisível ao `EventSource` do browser — nenhum handler dispara. Qualquer sinal que o cliente precise reagir tem que ser um evento nomeado de verdade.
 - Último gate aprovado: **M-PROD1 — Gate Git PASS** (PR #33, `5b23c02`).
-- Bloqueios: nenhum bloqueio técnico. Produção de verdade (Railway provisionado, domínio, dados reais do Bella III) precisa de ação do próprio Victor — passo a passo em `docs/RUNBOOK_DEPLOY.md`. M26 (equipe/permissões + configurações) precisa de **backend novo** e de decisões de produto — ver perguntas em aberto em `docs/ACTIVE_PLAN.md`.
+- Bloqueios: nenhum bloqueio técnico. Produção já está no ar (Railway) — falta só dados reais do Bella III (cardápio/mesas/equipe) pra virar utilizável de verdade. M26 (equipe/permissões + configurações) precisa de **backend novo** e de decisões de produto — ver perguntas em aberto em `docs/ACTIVE_PLAN.md`.
 
 ## Próximo passo exato
 
 Dois caminhos possíveis, ambos dependem do Victor:
-1. **Deploy real** — ele segue `docs/RUNBOOK_DEPLOY.md` (criar conta Railway, variáveis
-   reais, domínio opcional) e me passa cardápio/mesas/equipe reais do Bella III pra eu
-   popular o banco de produção.
+
+1. **Dados reais do Bella III** — ele passa cardápio, mesas/áreas e equipe reais pra eu
+   popular o banco de produção (já no ar, só vazio — ver `docs/RUNBOOK_DEPLOY.md §4`).
 2. **M26 — Equipe/permissões e configurações** — Gate de Plano ainda não respondido;
    as 4 perguntas em aberto estão em `docs/ACTIVE_PLAN.md` (fluxo de convite, papéis
    vs. permissão granular, campos reais de `tenant_settings`, conferir o canvas do
