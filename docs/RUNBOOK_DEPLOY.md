@@ -1,89 +1,92 @@
 # Bella OS — Runbook de Deploy (Railway)
 
 > Decisão de hosting: `docs/ARCHITECTURE.md §9` (Railway — dois serviços, `api` e `web`,
-> mais Postgres gerenciado). Este runbook cobre o que **eu (Claude) já deixei pronto no
-> repositório** e o que **só o Victor pode fazer** (criar conta, conectar cartão,
-> comprar domínio) — nada disso é algo que uma sessão autônoma deveria fazer sozinha:
-> envolve credenciais, pagamento e decisões que são do dono do produto.
+> mais Postgres gerenciado). **Status: já em produção real desde 2026-09-10.** O Victor
+> criou o projeto no Railway e me deu acesso total via `railway login` local — a partir
+> daí toda a configuração (banco, variáveis, deploy) foi feita por mim via CLI/API.
 
-## 1. O que já está pronto no repositório (não precisa fazer nada aqui)
+## 1. Estado real do projeto Railway
 
-- `apps/api/railway.json` e `apps/web/railway.json` — config de build/start de cada
-  serviço (Nixpacks, `pnpm --filter` a partir da raiz do monorepo).
-- `apps/api/src/config.ts` — a API **recusa subir** com `NODE_ENV=production` sem
-  `APP_DATABASE_URL`, `BETTER_AUTH_SECRET` e `WEB_ORIGIN` definidas (erro explícito na
-  inicialização, não um comportamento silencioso inseguro).
-- Rate limiting (`@fastify/rate-limit`, 300 req/min por IP) e cabeçalhos de segurança
-  (`@fastify/helmet`) já registrados em `apps/api/src/app.ts`.
-- `packages/db/scripts/backup.sh` / `restore.sh` — testados no CI (job
-  `backup-restore`), prontos para rodar manualmente contra o Postgres de produção
-  quando ele existir (ver `docs/RUNBOOK_INCIDENTS.md`).
-- `GET /health` (liveness) e `GET /ready` (checa conexão com o banco) já existem —
-  usados pelo `healthcheckPath` dos `railway.json` acima.
+- **Projeto**: `bella-os` (id `f7f07fd1-08b0-4191-852e-667fb9d196cd`), workspace da
+  conta `arniabrasil@gmail.com`. Ambiente único: `production`
+  (id `2d65a576-8526-4187-8c96-b6174f6a5bc6`).
+- **Serviço `api`** (id `f6299683-e4d9-4144-89d7-43a041304591`): GitHub
+  `arnia-brasil/bella-os` branch `main`, domínio
+  `https://api-production-f7d1.up.railway.app`. Build/start configurados via
+  mutação GraphQL `serviceInstanceUpdate` direto na API do Railway (ver nota no §3 —
+  o dot-path `railway environment edit --service-config` **não persiste** build/deploy
+  nesta CLI, é um bug real, não um erro de uso).
+- **Serviço `web`** (id `ba2f92f4-9984-44c7-a311-984d6e58482d`): mesmo repo, domínio
+  `https://web-production-751e3.up.railway.app`.
+- **Serviço `Postgres`** (id `e5bf7bae-3b19-43ca-8dd3-640bda6360dd`): template
+  `ghcr.io/railwayapp-templates/postgres-ssl:18`, volume `postgres-volume` (5 GB).
+- Não existe mais `apps/api/railway.json`/`apps/web/railway.json` no repo — Config as
+  Code (esses arquivos) foi abandonado em favor de configuração direta no Railway,
+  porque o CLI local tinha um bug ao gravar `build`/`deploy` por essa via (ver §3).
 
-## 2. O que só o Victor pode fazer (conta, cartão, domínio)
+## 2. Variáveis já configuradas
 
-Railway tem um plano gratuito de avaliação (crédito inicial, sem cobrança automática
-enquanto não configurar um cartão), então dá pra criar o projeto e testar sem gastar —
-mas a conta em si, e qualquer decisão de plano pago depois, é sua.
+**`api`**: `NODE_ENV=production`, `APP_DATABASE_URL` (papel restrito `bella_app`, não
+o dono do banco — ver `apps/api/src/config.ts`), `BETTER_AUTH_SECRET` (gerado,
+guardado só no Railway, não está em nenhum arquivo do repo), `BETTER_AUTH_URL`,
+`WEB_ORIGIN` (apontando pro domínio do `web`).
 
-1. **Criar conta em [railway.app](https://railway.app)** (login com GitHub é o mais
-   simples — usa a mesma conta `Victor-Hugo-Soares`).
-2. **Novo projeto → "Deploy from GitHub repo"** → selecionar `Victor-Hugo-Soares/bella-os`.
-3. **Adicionar um serviço Postgres** ao projeto (Railway → "New" → "Database" →
-   "PostgreSQL"). Railway gera a `DATABASE_URL` automaticamente como variável do
-   serviço de banco — vamos usá-la manualmente nos passos abaixo (nenhuma automação
-   aqui, é só copiar/colar as credenciais certas nos serviços certos).
-4. **Criar o serviço `api`**:
-   - "New" → "GitHub Repo" → mesmo repo → em "Settings", **Root Directory** continua
-     `/` (raiz do monorepo — precisa do lockfile do workspace inteiro), mas em
-     **"Config-as-code" → "Config File Path"** apontar para `apps/api/railway.json`.
-   - Variáveis de ambiente do serviço (Settings → Variables):
-     - `NODE_ENV=production`
-     - `APP_DATABASE_URL` — **não** é a `DATABASE_URL` que o Railway gera para o
-       Postgres (aquela é o *dono* do banco, ignora RLS — ver comentário em
-       `apps/api/src/config.ts`). Rodar `pnpm db:app-role` uma vez, manualmente, contra
-       o Postgres de produção (com `DATABASE_URL` e `APP_DB_PASSWORD` apontando pra
-       lá) para criar o papel restrito `bella_app`, e só então montar a connection
-       string com esse usuário/senha.
-     - `APP_DB_PASSWORD` — a senha escolhida para o papel `bella_app` (gere uma forte,
-       ex. `openssl rand -base64 24`).
-     - `BETTER_AUTH_SECRET` — gerar com `openssl rand -base64 32`. Guardar em local
-       seguro (gerenciador de senhas) além do Railway — perder esse valor invalida
-       todas as sessões ativas.
-     - `BETTER_AUTH_URL` — a URL pública que o Railway atribuir a este serviço (ex.
-       `https://bella-api-production.up.railway.app`), ou o domínio customizado do
-       passo 6.
-     - `WEB_ORIGIN` — a URL pública do serviço `web` (passo 5).
-   - `PORT`/`HOST` não precisam ser definidas — o Railway injeta `PORT` automaticamente
-     e `apps/api/src/config.ts` já usa `HOST=0.0.0.0` por padrão.
-5. **Criar o serviço `web`**: mesmo processo, apontando o "Config File Path" para
-   `apps/web/railway.json`. Variável necessária: `NEXT_PUBLIC_API_URL` = a URL pública
-   do serviço `api` (passo 4).
-6. **Domínio customizado (opcional, tem custo de registro)**: Railway → serviço → 
-   "Settings" → "Networking" → "Custom Domain". Enquanto não tiver um domínio próprio,
-   os subdomínios `*.up.railway.app` gerados automaticamente já servem HTTPS válido —
-   dá pra operar o Bella III com eles sem gastar nada a mais.
+**`web`**: `NEXT_PUBLIC_API_URL` (apontando pro domínio do `api`).
 
-## 3. Depois do primeiro deploy — dados reais do Bella III
+**Banco**: migrations já aplicadas (`pnpm db:migrate`) e papel `bella_app` já criado
+(`pnpm db:app-role`) contra o Postgres de produção — feito localmente através de um
+proxy TCP temporário (`railway tcp-proxy create`/`delete`, nunca deixado exposto por
+mais tempo que o necessário). **`pnpm db:seed` NÃO foi rodado** — produção está vazia
+de propósito, esperando dados reais do Bella III (ver §4).
 
-O seed atual (`packages/db/src/seed/index.ts`) só cria tenants **fictícios**
-(`dono@bella.example.com`). Antes de operar de verdade, alguém (Victor ou uma sessão
-futura desta IA, com os dados em mãos) precisa:
-- Rodar as migrations contra o Postgres de produção (`pnpm db:migrate` com
-  `DATABASE_URL` apontando pra lá).
-- Criar o tenant real do Bella III com cardápio, mesas/áreas e conta de staff reais —
-  hoje isso só é possível editando o seed ou inserindo direto via SQL; não existe UI
-  de onboarding de tenant ainda (`docs/KNOWN_ISSUES.md` Q10-Q12).
+## 3. Achados reais durante a configuração (guardar para não repetir a investigação)
 
-## 4. Verificação pós-deploy (mesma disciplina do resto do projeto — nunca só "abriu")
+- Os dois serviços que o Victor criou originalmente pelo dashboard (`@bella/api`/
+  `@bella/web`) nunca chegaram a existir de verdade — ficavam "staged" (a tela mostrava
+  "Apply N changes" nunca aplicado, e a API confirmava zero `ServiceInstance` na
+  environment). Foram apagados (`serviceDelete` via GraphQL) e recriados do zero com
+  `railway add --service <nome>` (nomes simples, sem `@`/`/` no nome — caracteres
+  especiais pareciam confundir alguns comandos do CLI que resolvem serviço por nome).
+- `railway environment edit --service-config <svc> build.buildCommand`/
+  `deploy.startCommand`/`build.builder`/`deploy.healthcheckPath` **roda sem erro mas
+  não persiste** (confirmado repetidas vezes via `railway environment config --json`
+  depois). Isolado: não é conflito com `railway.json` (o bug persistiu depois de
+  apagar os arquivos); `railway variable set` funciona normalmente, só os campos de
+  `build`/`deploy` que falham silenciosamente. **Workaround**: chamar a mutação
+  GraphQL `serviceInstanceUpdate(serviceId, environmentId, input)` diretamente em
+  `https://backboard.railway.com/graphql/v2` (token em `~/.railway/config.json` →
+  `user.accessToken`, não `user.token`, que dá "Not Authorized").
+- A Infrastructure as Code nova (`.railway/railway.ts`, `railway config plan`/`apply`)
+  também não funcionou nesta máquina — `railway config plan` falhava com "requires
+  Railway CLI 5.42.1 or newer" mesmo com a CLI já atualizada pra 5.52.1. Abandonada em
+  favor do GraphQL direto; não há `.railway/` no repo.
 
-1. `curl https://<url-do-serviço-api>/health` → `{"status":"ok",...}`.
-2. `curl https://<url-do-serviço-api>/ready` → `"status":"ok"` e
-   `"checks":{"database":"ok"}` (prova que `APP_DATABASE_URL` está certa e o banco
-   responde).
-3. Login real de staff em `https://<url-do-serviço-web>/admin/login` com uma conta
-   criada no banco de produção.
-4. Testar CORS de verdade: abrir o DevTools do navegador na URL do `web`, confirmar
-   que as chamadas para a `api` não são bloqueadas (prova que `WEB_ORIGIN` bate com a
-   URL real do `web`).
+## 4. Próximo passo real: dados do Bella III
+
+O seed atual (`packages/db/src/seed/index.ts`) só cria tenants **fictícios**. Falta:
+- Cardápio real (categorias, produtos, preços).
+- Mesas/áreas reais do salão.
+- Conta(s) de staff reais (nome, email, papel).
+
+Sem isso, o Railway está no ar mas o banco de produção está vazio — ninguém consegue
+de fato usar o sistema ainda. Assim que o Victor passar esses dados, a próxima sessão
+deve inserir o tenant real (editando o seed ou via SQL direto contra o Postgres de
+produção, mesmo processo de proxy TCP temporário usado para as migrations).
+
+## 5. Verificação pós-deploy (já feita, repetir sempre que houver dúvida)
+
+1. `curl https://api-production-f7d1.up.railway.app/health` → `{"status":"ok",...}`.
+2. `curl https://api-production-f7d1.up.railway.app/ready` → `"checks":{"database":"ok"}`
+   (prova que `APP_DATABASE_URL`/`bella_app` estão certos e o banco responde).
+3. Login real de staff em `https://web-production-751e3.up.railway.app/admin/login`
+   — só vai funcionar depois que existir uma conta de staff real no banco (§4).
+4. CORS: confirmar no DevTools do navegador que chamadas do `web` para o `api` não são
+   bloqueadas (prova que `WEB_ORIGIN` bate com a URL real do `web`).
+
+## 6. O que ainda depende do Victor
+
+- **Domínio customizado** (opcional, tem custo de registro) — os subdomínios
+  `*.up.railway.app` já servem HTTPS válido, funcionam sem custo adicional.
+- **Dados reais do Bella III** (§4) — só ele tem essa informação.
+- **Confirmar se o plano gratuito do Railway é suficiente** ou se algum upgrade de
+  plano será necessário conforme o uso cresce — decisão de custo, não técnica.

@@ -12,10 +12,11 @@ Construir e operar o Bella OS: sistema completo de restaurante para o Bella III 
 
 ## GitHub e identidade (gate G0 em toda sessão)
 
-- Repositório: `https://github.com/Victor-Hugo-Soares/bella-os.git` (branch `main`).
-- Identidade local do repo: `Victor Hugo <116037876+Victor-Hugo-Soares@users.noreply.github.com>`. Conferir com `git config user.email`.
-- A máquina tem outras contas no GitHub CLI. Antes de push: `gh auth status` deve mostrar `Victor-Hugo-Soares` ativa (senão `gh auth switch --user Victor-Hugo-Soares`).
+- **Repositório transferido em 2026-09-10**: era `Victor-Hugo-Soares/bella-os`, agora é `https://github.com/arnia-brasil/bella-os.git` (branch `main`). Remote local já atualizado (`git remote set-url origin ...`).
+- Identidade local do repo: `Arnia Brasil <317937930+arnia-brasil@users.noreply.github.com>`. Conferir com `git config user.email`.
+- A máquina tem outras contas no GitHub CLI (`victorlins-dev`, `Victor-Hugo-Soares`, `arnia-brasil`). Antes de push: `gh auth status` deve mostrar `arnia-brasil` ativa (senão `gh auth switch --user arnia-brasil && gh auth setup-git`).
 - Branches de trabalho `claude/<tema>`; `main` só com CI verde. Nunca force-push em `main`.
+- **Em produção real no Railway desde 2026-09-10** (projeto `bella-os`, conta `arniabrasil@gmail.com`): `api` em `https://api-production-f7d1.up.railway.app`, `web` em `https://web-production-751e3.up.railway.app`, Postgres gerenciado. Migrations e papel `bella_app` já aplicados; seed de dados reais do Bella III ainda pendente (banco vazio de propósito). Detalhes completos, IDs e achados reais da configuração: `docs/RUNBOOK_DEPLOY.md`.
 
 ## Regras absolutas
 
@@ -58,9 +59,8 @@ G0 ambiente/identidade · G1 plano · G2 dados/contratos · G3 feature · G4 int
 ## Próximo passo exato
 
 Dois caminhos possíveis, ambos dependem do Victor:
-1. **Deploy real** — ele segue `docs/RUNBOOK_DEPLOY.md` (criar conta Railway, variáveis
-   reais, domínio opcional) e me passa cardápio/mesas/equipe reais do Bella III pra eu
-   popular o banco de produção.
+1. **Dados reais do Bella III** — ele passa cardápio, mesas/áreas e equipe reais pra eu
+   popular o banco de produção (já no ar, só vazio — ver `docs/RUNBOOK_DEPLOY.md §4`).
 2. **M26 — Equipe/permissões e configurações** — Gate de Plano ainda não respondido;
    as 4 perguntas em aberto estão em `docs/ACTIVE_PLAN.md` (fluxo de convite, papéis
    vs. permissão granular, campos reais de `tenant_settings`, conferir o canvas do
