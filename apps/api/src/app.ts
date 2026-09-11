@@ -103,6 +103,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       secret: config.BETTER_AUTH_SECRET,
       webOrigin: config.WEB_ORIGIN,
       baseURL: config.BETTER_AUTH_URL,
+      crossOriginCookies: config.NODE_ENV === 'production',
     });
     await app.register(identityRoutes, { auth });
     await app.register(deviceRoutes, { db: db.db, auth });

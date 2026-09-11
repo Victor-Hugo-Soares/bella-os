@@ -9,6 +9,16 @@ export interface AuthDeps {
   secret: string | undefined;
   webOrigin: string | undefined;
   baseURL: string;
+  /**
+   * `apps/api` e `apps/web` rodam em origens diferentes de verdade (dois serviços
+   * Railway em subdomínios `*.up.railway.app` distintos, sem domínio raiz comum —
+   * `crossSubDomainCookies` do Better Auth não serve aqui, pediria `Domain` num
+   * sufixo público). Sem isto, o cookie de sessão sai com `SameSite=Lax` e o
+   * navegador nunca o reenvia nas chamadas cross-origin do `web` pro `api` — login
+   * funciona (o Set-Cookie chega), mas toda chamada autenticada seguinte cai em 401
+   * (bug real, achado testando login de verdade em produção, não só lendo o código).
+   */
+  crossOriginCookies?: boolean;
 }
 
 /**
@@ -38,6 +48,9 @@ export function createAuth(deps: AuthDeps) {
       database: {
         generateId: () => newId(),
       },
+      ...(deps.crossOriginCookies
+        ? { defaultCookieAttributes: { sameSite: 'none', secure: true } }
+        : {}),
     },
     secret: deps.secret,
     trustedOrigins: deps.webOrigin ? [deps.webOrigin] : [],
