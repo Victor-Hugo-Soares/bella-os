@@ -125,6 +125,12 @@ function TicketBoard({ deviceToken }: { deviceToken: string }) {
     void load();
     const pollTimer = setInterval(() => void load(), POLL_FALLBACK_MS);
 
+    // Direto pra origem da API (NÃO passa pelo proxy de next.config.ts): autenticação
+    // aqui é por `deviceToken` na query string, não cookie de sessão — não tem o
+    // problema de cookie cross-site que motivou o proxy em lib/api.ts. E o proxy
+    // quebraria isto mesmo se usássemos: testado localmente que o rewrite do Next.js
+    // não mantém a conexão SSE aberta de verdade (a requisição aparece "concluída" em
+    // vez de continuar recebendo heartbeats), então stream longo tem que ir direto.
     const url = new URL('/v1/stream', process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
     url.searchParams.set('deviceToken', deviceToken);
     // EventSource não permite headers customizados — o token vai por query string

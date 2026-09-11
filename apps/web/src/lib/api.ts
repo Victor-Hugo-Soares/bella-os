@@ -1,12 +1,14 @@
 /**
- * Cliente HTTP mínimo para a API do Bella OS (M4). `credentials: 'include'` é
- * obrigatório em todo request — a sessão do Better Auth (M2) é um cookie no domínio
- * da API, e API e web rodam em origens diferentes em desenvolvimento (`localhost:3000`
- * vs `localhost:3001`); sem isso o navegador não envia nem aceita o cookie. A API já
- * está configurada para aceitar essa origem via `WEB_ORIGIN` + `credentials: true`
- * (ADR do M2) — este arquivo é o lado do browser dessa mesma decisão.
+ * Cliente HTTP mínimo para a API do Bella OS (M4). O `web` sempre chama a própria
+ * origem (`API_BASE_URL` vazio, caminho relativo) — `next.config.ts` proxia `/v1/*` e
+ * `/api/auth/*` pra `apps/api` por baixo. Isso faz o cookie de sessão do Better Auth
+ * ser sempre first-party, nunca cross-site: descoberto testando login de verdade em
+ * produção (Railway coloca `api`/`web` em subdomínios diferentes, sem domínio raiz
+ * comum) — `credentials: 'include'` sozinho não bastava, o cookie cross-site era
+ * bloqueado silenciosamente por navegador (variava por navegador/dispositivo, por
+ * isso o proxy é a correção definitiva, não um ajuste de `SameSite`).
  */
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+export const API_BASE_URL = '';
 
 export interface ApiErrorBody {
   error: { code: string; message: string; request_id: string };
